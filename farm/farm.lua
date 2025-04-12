@@ -22,6 +22,7 @@ local refuel_function = function()
   local fuel = turtle.getFuelLevel()
   return fuel < lowFuelThreshold
 end -- assign this function to allow smove to refuel and return to its previous position instead of throwing an error when critical fuel levels are reached. Also must return true on success.
+
 require("smove")
 smove.self_refuel=function() return false end -- assign this function to allow smove to refuel on the go. Return true on success
 smove.home_refuel=refuel_function
@@ -35,10 +36,10 @@ smove.print_status=false -- print messages when homing (for debugging)
 
 -- Default crops and seeds configuration
 local crops = {
-  crop1 = { crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
-  crop2 = { crop = "minecraft:carrots", seed = "minecraft:carrot", age = 7 },
-  crop3 = { crop = "minecraft:potatoes", seed = "minecraft:potato", age = 7 },
-  crop4 = { crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
+  crop1 = { slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
+  crop2 = { slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrots", age = 7 },
+  crop3 = { slotPosition = 4, crop = "minecraft:potatoes", seed = "minecraft:potatoes", age = 7 },
+  crop4 = { slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
 }
 
 -- Function to load crop configuration from file
@@ -57,7 +58,15 @@ local function loadCropConfig()
     end
     file.close()
   else
-    print("No crop.config file found. Using default crop, seed, and age configuration.")
+    print("No crop.config file found. Creating default file with default crop, seed, and age configuration.")
+    file = fs.open('crop.config', 'w')
+    for _, cropType in ipairs({ "crop1", "crop2", "crop3", "crop4" }) do
+      local config = crops[cropType]
+      file.writeLine(config.crop)
+      file.writeLine(config.seed)
+      file.writeLine(config.age)
+    end
+    file.close()
   end
 end
 
@@ -69,12 +78,24 @@ end
 
 local targetStartItem = "minecraft:orange_stained_glass_pane"
 local targetBorder = "minecraft:glass_pane"
+local storageTag = "c:chests"
 local waitTime = 300
+
 local file=fs.open('farm.config','r')
 if file then
   targetStartItem = file.readLine()
   targetBorder = file.readLine()
+  storageTag = file.readLine()
   waitTime = tonumber(file.readLine())
+  file.close()
+else
+  file=fs.open('farm.config','w+')
+  file.writeLine(targetStartItem)
+  file.writeLine(targetBorder)
+  file.writeLine(storageTag)
+  file.writeLine(waitTime)
+  file.flush()
+  file.close()
 end
 --------------------------------------------------
 -- CLEAR CONSOLE
@@ -106,7 +127,7 @@ local function positionTurtle()
     local successDown, dataDown = turtle.inspectDown()
     if successDown and dataDown.name == "minecraft:water" then
       local successFront, dataFront = turtle.inspect()
-      if successFront and dataFront and dataFront.tags and (dataFront.tags["forge:chests"] or dataFront.tags["forge:barrels"]) then
+      if successFront and dataFront and dataFront.tags and dataFront.tags[storageTag] then
         print("Position OK.")
         positioned = true
       else
@@ -197,20 +218,11 @@ end
 local function organizeSeeds(cropBlock)
   -- We only organize seeds for wheat and beetroots (which use dedicated slots)
   local seedType, dedicatedSlot
-  if cropBlock == crops["crop1"].crop then
-    seedType = crops["crop1"].seed
-    dedicatedSlot = 1
-  elseif cropBlock == crops["crop2"].crop then
-    seedType = crops["crop2"].seed
-    dedicatedSlot = 2
-  elseif cropBlock == crops["crop3"].crop then
-    seedType = crops["crop3"].seed
-    dedicatedSlot = 3
-  elseif cropBlock == crops["crop4"].crop then
-    seedType = crops["crop4"].seed
-    dedicatedSlot = 4
-  else
-    return  -- No organization for carrots or potatoes.
+  for cropType, config in pairs(crops) do
+    if cropBlock ==config.crop then
+      seedType = config.seed
+      dedicatedSlot = config.slotPosition
+    end
   end
 
   turtle.select(dedicatedSlot)
@@ -222,7 +234,7 @@ local function organizeSeeds(cropBlock)
     space = 64
   end
 
-  for slot = 1, 16 do
+  for slot = 2, 16 do
     if slot ~= dedicatedSlot then
       turtle.select(slot)
       local detail = turtle.getItemDetail(slot)
@@ -254,22 +266,14 @@ end
 local function attemptToPlant(cropBlock)
   -- Map the crop block to the seed item and dedicated slot.
   local seedType, dedicatedSlot
-  if cropBlock == crops["crop1"].crop then
-    seedType = crops["crop1"].seed
-    dedicatedSlot = 1
-  elseif cropBlock == crops["crop2"].crop then
-    seedType = crops["crop2"].seed
-    dedicatedSlot = 2
-  elseif cropBlock == crops["crop3"].crop then
-    seedType = crops["crop3"].seed
-    dedicatedSlot = 3
-  elseif cropBlock == crops["crop4"].crop then
-    seedType = crops["crop4"].seed
-    dedicatedSlot = 4
-  else
     -- Default to wheat if unknown.
     seedType = crops["crop1"].seed
-    dedicatedSlot = 1
+    dedicatedSlot = 2
+  for cropType, config in pairs(crops) do
+    if cropBlock ==config.crop then
+      seedType = config.seed
+      dedicatedSlot = config.slotPosition
+    end
   end
 
   -- Check the dedicated slot.
@@ -278,7 +282,7 @@ local function attemptToPlant(cropBlock)
   if slotItem and slotItem.name ~= seedType then
     -- The dedicated slot contains the wrong item; try to move it.
     local emptySlot = nil
-    for s = 1, 16 do
+    for s = 2, 16 do
       if s ~= dedicatedSlot and not turtle.getItemDetail(s) then
         emptySlot = s
         break
@@ -295,7 +299,7 @@ local function attemptToPlant(cropBlock)
   slotItem = turtle.getItemDetail(dedicatedSlot)
   if not slotItem or slotItem.name ~= seedType then
     local found = false
-    for s = 1, 16 do
+    for s = 2, 16 do
       if s ~= dedicatedSlot then
         local detail = turtle.getItemDetail(s)
         if detail and detail.name == seedType then
@@ -483,6 +487,7 @@ end
 --------------------------------------------------
 smove.home()
 loadCropConfig()
+print("Thank thee to Beni for his script, which The Aram'lor improved")
 print("Starting main farming process.")
 while true do
   positionTurtle()
