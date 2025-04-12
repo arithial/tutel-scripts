@@ -6,14 +6,76 @@
 --------------------------------------------------
 local fuelSuckCount = 10         -- Number of fuel items (e.g., coal) to suck at start.
 local lowFuelThreshold = fuelSuckCount * 8
+--------------------------------------------------
+-- SMOVE
+--------------------------------------------------
+
+local refuel_function = function()
+  print("Fuel low (" .. fuel .. "); refueling...")
+  turtle.turnRight()   -- Face refuel Ender Chest.
+  turtle.suck(fuelSuckCount)
+  for slot = 1, 16 do
+    turtle.select(slot)
+    turtle.refuel()
+  end
+  turtle.turnLeft()    -- Restore original facing.
+  local fuel = turtle.getFuelLevel()
+  return fuel < lowFuelThreshold
+end -- assign this function to allow smove to refuel and return to its previous position instead of throwing an error when critical fuel levels are reached. Also must return true on success.
+require("smove")
+smove.self_refuel=function() return false end -- assign this function to allow smove to refuel on the go. Return true on success
+smove.home_refuel=refuel_function
+smove.panic=function(reason) print(reason) end -- what to do when smove has failed to return to the starting position, for example send an sos over a wireless modem
+smove.home_on_fail=false -- set this to true to return home if movement fails
+smove.print_status=false -- print messages when homing (for debugging)
 
 --------------------------------------------------
--- BORDER SETUP
+-- CROP SETUP
 --------------------------------------------------
-local args = {...}
-local targetStartItem = args[1] or "minecraft:orange_stained_glass_pane"
-local targetBorder = args[2] or "minecraft:glass_pane"
 
+-- Default crops and seeds configuration
+local crops = {
+  crop1 = { crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
+  crop2 = { crop = "minecraft:carrots", seed = "minecraft:carrot", age = 7 },
+  crop3 = { crop = "minecraft:potatoes", seed = "minecraft:potato", age = 7 },
+  crop4 = { crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
+}
+
+-- Function to load crop configuration from file
+local function loadCropConfig()
+  local file = fs.open('crop.config', 'r')
+  if file then
+    for cropType, config in pairs(crops) do
+      local cropLine = file.readLine()
+      local seedLine = file.readLine()
+      local ageLine = file.readLine()
+      if cropLine and seedLine and ageLine then
+        config.crop = cropLine
+        config.seed = seedLine
+        config.age = tonumber(ageLine) or config.age
+      end
+    end
+    file.close()
+  else
+    print("No crop.config file found. Using default crop, seed, and age configuration.")
+  end
+end
+
+-- Load crop configuration
+--------------------------------------------------
+-- CONFIG SETUP
+--------------------------------------------------
+--local args = {...}
+
+local targetStartItem = "minecraft:orange_stained_glass_pane"
+local targetBorder = "minecraft:glass_pane"
+local waitTime = 300
+local file=fs.open('farm.config','r')
+if file then
+  targetStartItem = file.readLine()
+  targetBorder = file.readLine()
+  waitTime = tonumber(file.readLine())
+end
 --------------------------------------------------
 -- CLEAR CONSOLE
 term.clear()
@@ -100,18 +162,11 @@ end
 -- FUEL CHECK ROUTINE
 --------------------------------------------------
 local function fuelCheck()
-  local fuel = turtle.getFuelLevel()
-  if fuel < lowFuelThreshold then
-    print("Fuel low (" .. fuel .. "); refueling...")
-    turtle.turnRight()   -- Face refuel Ender Chest.
-    turtle.suck(fuelSuckCount)
-    for slot = 1, 16 do
-      turtle.select(slot)
-      turtle.refuel()
-    end
-    turtle.turnLeft()    -- Restore original facing.
+  local fuelLevel = turtle.getFuelLevel()
+  if fuelLevel < lowFuelThreshold then
+    refuel_function()
   else
-    print("Fuel level sufficient (" .. fuel .. ").")
+    print("Fuel level sufficient (" .. fuelLevel .. ").")
   end
 end
 
@@ -142,11 +197,17 @@ end
 local function organizeSeeds(cropBlock)
   -- We only organize seeds for wheat and beetroots (which use dedicated slots)
   local seedType, dedicatedSlot
-  if cropBlock == "minecraft:wheat" then
-    seedType = "minecraft:wheat_seeds"
+  if cropBlock == crops["crop1"].crop then
+    seedType = crops["crop1"].seed
     dedicatedSlot = 1
-  elseif cropBlock == "minecraft:beetroots" then
-    seedType = "minecraft:beetroot_seeds"
+  elseif cropBlock == crops["crop2"].crop then
+    seedType = crops["crop2"].seed
+    dedicatedSlot = 2
+  elseif cropBlock == crops["crop3"].crop then
+    seedType = crops["crop3"].seed
+    dedicatedSlot = 3
+  elseif cropBlock == crops["crop4"].crop then
+    seedType = crops["crop4"].seed
     dedicatedSlot = 4
   else
     return  -- No organization for carrots or potatoes.
@@ -193,21 +254,21 @@ end
 local function attemptToPlant(cropBlock)
   -- Map the crop block to the seed item and dedicated slot.
   local seedType, dedicatedSlot
-  if cropBlock == "minecraft:wheat" then
-    seedType = "minecraft:wheat_seeds"
+  if cropBlock == crops["crop1"].crop then
+    seedType = crops["crop1"].seed
     dedicatedSlot = 1
-  elseif cropBlock == "minecraft:carrots" then
-    seedType = "minecraft:carrot"
+  elseif cropBlock == crops["crop2"].crop then
+    seedType = crops["crop2"].seed
     dedicatedSlot = 2
-  elseif cropBlock == "minecraft:potatoes" then
-    seedType = "minecraft:potato"
+  elseif cropBlock == crops["crop3"].crop then
+    seedType = crops["crop3"].seed
     dedicatedSlot = 3
-  elseif cropBlock == "minecraft:beetroots" then
-    seedType = "minecraft:beetroot_seeds"
+  elseif cropBlock == crops["crop4"].crop then
+    seedType = crops["crop4"].seed
     dedicatedSlot = 4
   else
     -- Default to wheat if unknown.
-    seedType = "minecraft:wheat_seeds"
+    seedType = crops["crop1"].seed
     dedicatedSlot = 1
   end
 
@@ -270,7 +331,7 @@ local function plantSeedWithFallback(requestedBlock)
     return
   end
 
-  local fallbackOrder = { "minecraft:wheat", "minecraft:carrots", "minecraft:potatoes", "minecraft:beetroots" }
+  local fallbackOrder = { crops["crop1"].crop, crops["crop2"].crop, crops["crop3"].crop, crops["crop4"].crop }
   for _, fallbackBlock in ipairs(fallbackOrder) do
     if fallbackBlock ~= requestedBlock then
       if attemptToPlant(fallbackBlock) then
@@ -289,14 +350,11 @@ end
 local function isCropMature(blockName, age)
   -- Maturity levels:
   -- wheat: 7, carrots: 8, potatoes: 8, beetroots: 3
-  if blockName == "minecraft:wheat" then
-    return age == 7
-  elseif blockName == "minecraft:carrots" then
-    return age == 7
-  elseif blockName == "minecraft:potatoes" then
-    return age == 7
-  elseif blockName == "minecraft:beetroots" then
-    return age == 3
+
+  for cropType, config in pairs(crops) do
+    if config.crop == blockName then
+      return age >=config.age
+    end
   end
   return false
 end
@@ -311,7 +369,7 @@ local function checkPlantGrowth()
     local success1, data1 = turtle.inspect()
     local firstOk = true
     if success1 then
-      if data1.name == "minecraft:wheat" or data1.name == "minecraft:carrots" or data1.name == "minecraft:potatoes" or data1.name == "minecraft:beetroots" then
+      if data1.name == crops["crop1"].crop or data1.name == crops["crop2"].crop or data1.name == crops["crop3"].crop or data1.name == crops["crop4"].crop then
         if not isCropMature(data1.name, data1.state.age) then
           firstOk = false
         end
@@ -319,15 +377,15 @@ local function checkPlantGrowth()
     end
 
     if not firstOk then
-      print("First adjacent crop not fully grown; waiting 5 minutes.")
+      print("First adjacent crop not fully grown; waiting " .. waitTime .. " seconds.")
       turtle.turnRight()  -- Revert orientation.
-      sleep(300)
+      sleep(waitTime)
     else
       turtle.turnLeft()
       local success2, data2 = turtle.inspect()
       local secondOk = true
       if success2 then
-        if data2.name == "minecraft:wheat" or data2.name == "minecraft:carrots" or data2.name == "minecraft:potatoes" or data2.name == "minecraft:beetroots" then
+        if data2.name == crops["crop1"].crop or data2.name == crops["crop2"].crop or data2.name == crops["crop3"].crop or data2.name == crops["crop4"].crop then
           if not isCropMature(data2.name, data2.state.age) then
             secondOk = false
           end
@@ -365,10 +423,10 @@ local function mainFarmingProcess()
       local successDown, dataDown = turtle.inspectDown()
       if successDown then
         if dataDown.name == "minecraft:torch" then
-        elseif dataDown.name == "minecraft:wheat" or dataDown.name == "minecraft:carrots" or dataDown.name == "minecraft:potatoes" or dataDown.name == "minecraft:beetroots" then
+        elseif dataDown.name == crops["crop1"].crop or dataDown.name == crops["crop2"].crop or dataDown.name == crops["crop3"].crop or dataDown.name == crops["crop4"].crop then
           if isCropMature(dataDown.name, dataDown.state.age) then
             if isInventoryFull() then
-              if dataDown.name == "minecraft:wheat" or dataDown.name == "minecraft:beetroots" then
+              if dataDown.name == crops["crop1"].crop or dataDown.name == crops["crop2"].crop or dataDown.name == crops["crop3"].crop or dataDown.name == crops["crop4"].crop then
                 organizeSeeds(dataDown.name)
               end
             end
@@ -383,7 +441,7 @@ local function mainFarmingProcess()
         if lastPlantedCrop then
           plantSeedWithFallback(lastPlantedCrop)
         else
-          plantSeedWithFallback("minecraft:wheat")
+          plantSeedWithFallback(cropts.crop1.crop)
         end
       end
 
@@ -423,14 +481,15 @@ end
 --------------------------------------------------
 -- MAIN LOOP
 --------------------------------------------------
+smove.home()
+loadCropConfig()
+print("Starting main farming process.")
 while true do
-  print("Thank you for using Beni's Farm Script!")
   positionTurtle()
   fuelCheck()
   depositOperations()
   checkPlantGrowth()
   mainFarmingProcess()
-  print("Thank you for using Beni's Farm Script!")
   print("Cycle complete; repositioning...")
   positionTurtle()
 end

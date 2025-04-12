@@ -93,6 +93,11 @@ local FAILED_REGION_EMPTY = 4
 
 local REFUEL_THRESHOLD = 500
 local RETRY_DELAY = 3
+local initCobbleData = wrapt.getItemDetail(slots.get(BLOCK_SLOT))
+local cobbleName = "minecraft:cobblestone"
+if initCobbleData and initCobbleData.name then
+	cobbleName = initCobbleData.name
+end
 
 local FALLING_BLOCKS = {
 	["minecraft:gravel"] = true,
@@ -1461,12 +1466,12 @@ end
 
 local function sortInventory(sortFuel)
 	--clear cobble slot
---	local initCobbleData = wrapt.getItemDetail(slots.get(BLOCK_SLOT))
---	if initCobbleData and initCobbleData.name ~= "minecraft:cobblestone" then
---		wrapt.select(slots.get(BLOCK_SLOT))
---		wrapt.drop()
---	end
---
+	local initCobbleData = wrapt.getItemDetail(slots.get(BLOCK_SLOT))
+	if initCobbleData and initCobbleData.name ~= cobbleName then
+		wrapt.select(slots.get(BLOCK_SLOT))
+		wrapt.drop()
+	end
+
 	--clear fuel slot
 	if sortFuel then
 		local initFuelData = wrapt.getItemDetail(slots.get(FUEL_SLOT))
