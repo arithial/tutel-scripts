@@ -30,6 +30,13 @@ cfg.localConfig = {
 	mineLoopOffset = {x=0, y=0, z=8},
 	mineLoopCommand = "rcube 1 1 1"
 }
+require("smove")
+smove.self_refuel=refuelNormally() -- assign this function to allow smove to refuel on the go. Return true on success
+smove.home_refuel=function() return false end -- assign this function to allow smove to refuel on the go. Return true on success
+smove.panic=function(reason) print(reason) end -- what to do when smove has failed to return to the starting position, for example send an sos over a wireless modem
+smove.home_on_fail=false -- set this to true to return home if movement fails
+smove.print_status=false -- print messages when homing (for debugging)
+
 
 cfg.getRemoteConfig = function(remotePath)
 	local handle = http.get(remotePath)
@@ -1765,6 +1772,7 @@ local function executeDigging(layers, diggingArea, chestData, config)
 		end
 	end
 	tryDropOffThings(chestData, diggingArea, config.useEntangledChests, true)
+	smove.home()
 end
 
 local function getValidatedRegion(config, default)
