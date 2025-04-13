@@ -1172,11 +1172,8 @@ ui.showValidationError = function(validationResult)
 	helper.printError(error)
 end
 
-local initCobbleData = wrapt.getItemDetail(slots.get(BLOCK_SLOT))
 local cobbleName = "minecraft:cobblestone"
-if initCobbleData and initCobbleData.name then
-	cobbleName = initCobbleData.name
-end
+
 --#endregion
 
 ----THE REST OF THE CODE----
@@ -1881,7 +1878,10 @@ local function main(...)
 	local args = {...}
 	local config = helper.readOnlyTable(cfg.processConfig())
 	slots.assignSlots(config)
-
+	local initCobbleData = wrapt.getItemDetail(slots.get(BLOCK_SLOT))
+	if initCobbleData and initCobbleData.name then
+		cobbleName = initCobbleData.name
+	end
 	local default = args[1] == "def"
 
 	if config.mineLoop then
