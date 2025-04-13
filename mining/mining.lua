@@ -100,11 +100,6 @@ local FAILED_REGION_EMPTY = 4
 
 local REFUEL_THRESHOLD = 500
 local RETRY_DELAY = 3
-local initCobbleData = wrapt.getItemDetail(slots.get(BLOCK_SLOT))
-local cobbleName = "minecraft:cobblestone"
-if initCobbleData and initCobbleData.name then
-	cobbleName = initCobbleData.name
-end
 
 local FALLING_BLOCKS = {
 	["minecraft:gravel"] = true,
@@ -123,6 +118,11 @@ local wrapt = (function()
 		z = 0
 	}
 
+	local initCobbleData = wrapt.getItemDetail(slots.get(BLOCK_SLOT))
+	local cobbleName = "minecraft:cobblestone"
+	if initCobbleData and initCobbleData.name then
+		cobbleName = initCobbleData.name
+	end
 	local public = {}
 
 	--wrap everything in turtle
