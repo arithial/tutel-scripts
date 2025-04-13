@@ -234,7 +234,7 @@ local function organizeSeeds(cropBlock)
     space = 64
   end
 
-  for slot = 2, 16 do
+  for slot = 1, 16 do
     if slot ~= dedicatedSlot then
       turtle.select(slot)
       local detail = turtle.getItemDetail(slot)
@@ -282,7 +282,7 @@ local function attemptToPlant(cropBlock)
   if slotItem and slotItem.name ~= seedType then
     -- The dedicated slot contains the wrong item; try to move it.
     local emptySlot = nil
-    for s = 2, 16 do
+    for s = 1, 16 do
       if s ~= dedicatedSlot and not turtle.getItemDetail(s) then
         emptySlot = s
         break
@@ -299,7 +299,7 @@ local function attemptToPlant(cropBlock)
   slotItem = turtle.getItemDetail(dedicatedSlot)
   if not slotItem or slotItem.name ~= seedType then
     local found = false
-    for s = 2, 16 do
+    for s = 1, 16 do
       if s ~= dedicatedSlot then
         local detail = turtle.getItemDetail(s)
         if detail and detail.name == seedType then

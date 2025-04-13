@@ -96,6 +96,7 @@ local FAILED_REGION_EMPTY = 4
 
 local REFUEL_THRESHOLD = 500
 local RETRY_DELAY = 3
+local cobbleName = "minecraft:cobblestone"
 
 local FALLING_BLOCKS = {
 	["minecraft:gravel"] = true,
@@ -1172,7 +1173,6 @@ ui.showValidationError = function(validationResult)
 	helper.printError(error)
 end
 
-local cobbleName = "minecraft:cobblestone"
 
 --#endregion
 
@@ -1891,7 +1891,7 @@ local function main(...)
 	
 	launchDigging(config, default)
 end
-smove.self_refuel=refuelNormally() -- assign this function to allow smove to refuel on the go. Return true on success
+smove.self_refuel=refuelNormally -- assign this function to allow smove to refuel on the go. Return true on success
 smove.home_refuel=function() return false end -- assign this function to allow smove to refuel on the go. Return true on success
 smove.panic=function(reason) print(reason) end -- what to do when smove has failed to return to the starting position, for example send an sos over a wireless modem
 smove.home_on_fail=false -- set this to true to return home if movement fails
