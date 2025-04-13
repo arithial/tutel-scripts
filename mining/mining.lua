@@ -31,11 +31,7 @@ cfg.localConfig = {
 	mineLoopCommand = "rcube 1 1 1"
 }
 require("smove")
-smove.self_refuel=refuelNormally() -- assign this function to allow smove to refuel on the go. Return true on success
-smove.home_refuel=function() return false end -- assign this function to allow smove to refuel on the go. Return true on success
-smove.panic=function(reason) print(reason) end -- what to do when smove has failed to return to the starting position, for example send an sos over a wireless modem
-smove.home_on_fail=false -- set this to true to return home if movement fails
-smove.print_status=false -- print messages when homing (for debugging)
+
 
 
 cfg.getRemoteConfig = function(remotePath)
@@ -118,11 +114,7 @@ local wrapt = (function()
 		z = 0
 	}
 
-	local initCobbleData = wrapt.getItemDetail(slots.get(BLOCK_SLOT))
-	local cobbleName = "minecraft:cobblestone"
-	if initCobbleData and initCobbleData.name then
-		cobbleName = initCobbleData.name
-	end
+
 	local public = {}
 
 	--wrap everything in turtle
@@ -1180,6 +1172,11 @@ ui.showValidationError = function(validationResult)
 	helper.printError(error)
 end
 
+local initCobbleData = wrapt.getItemDetail(slots.get(BLOCK_SLOT))
+local cobbleName = "minecraft:cobblestone"
+if initCobbleData and initCobbleData.name then
+	cobbleName = initCobbleData.name
+end
 --#endregion
 
 ----THE REST OF THE CODE----
@@ -1894,5 +1891,9 @@ local function main(...)
 	
 	launchDigging(config, default)
 end
-
+smove.self_refuel=refuelNormally() -- assign this function to allow smove to refuel on the go. Return true on success
+smove.home_refuel=function() return false end -- assign this function to allow smove to refuel on the go. Return true on success
+smove.panic=function(reason) print(reason) end -- what to do when smove has failed to return to the starting position, for example send an sos over a wireless modem
+smove.home_on_fail=false -- set this to true to return home if movement fails
+smove.print_status=false -- print messages when homing (for debugging)
 main(...)
