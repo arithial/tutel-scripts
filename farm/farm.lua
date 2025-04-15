@@ -36,10 +36,10 @@ smove.print_status=false -- print messages when homing (for debugging)
 
 -- Default crops and seeds configuration
 local crops = {
-  crop1 = {sortSeeds = true, slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
-  crop2 = {sortSeeds = false, slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrots", age = 7 },
-  crop3 = {sortSeeds = false, slotPosition = 4, crop = "minecraft:potatoes", seed = "minecraft:potatoes", age = 7 },
-  crop4 = {sortSeeds = true, slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
+  crop1 = { slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
+  crop2 = { slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrots", age = 7 },
+  crop3 = { slotPosition = 4, crop = "minecraft:potatoes", seed = "minecraft:potatoes", age = 7 },
+  crop4 = { slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
 }
 
 -- Function to load crop configuration from file
