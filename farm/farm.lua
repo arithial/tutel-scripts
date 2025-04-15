@@ -36,15 +36,15 @@ smove.print_status=false -- print messages when homing (for debugging)
 
 -- Default crops and seeds configuration
 local crops = {
-  crop1 = { slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
-  crop2 = { slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrots", age = 7 },
-  crop3 = { slotPosition = 4, crop = "minecraft:potatoes", seed = "minecraft:potatoes", age = 7 },
-  crop4 = { slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
+  crop1 = {sortSeeds = true, slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
+  crop2 = {sortSeeds = false, slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrot", age = 7 },
+  crop3 = {sortSeeds = false, slotPosition = 4, crop = "minecraft:potatoes", seed = "minecraft:potato", age = 7 },
+  crop4 = {sortSeeds = true, slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
 }
 
 -- Function to load crop configuration from file
 local function loadCropConfig()
-  local file = fs.open('crops.config', 'r')
+  local file = fs.open('crops.cfg', 'r')
   if file then
     for cropType, config in pairs(crops) do
       local cropLine = file.readLine()
@@ -62,7 +62,7 @@ local function loadCropConfig()
     file.close()
   else
     print("No crop.config file found. Creating default file with default crop, seed, and age configuration.")
-    file = fs.open('crop.config', 'w')
+    file = fs.open('crops.cfg', 'w')
     for _, cropType in ipairs({ "crop1", "crop2", "crop3", "crop4" }) do
       local config = crops[cropType]
       file.writeLine(config.crop)
