@@ -1476,7 +1476,7 @@ local function sortInventory(sortFuel)
 	--clear fuel slot
 	if sortFuel then
 		local initFuelData = wrapt.getItemDetail(slots.get(FUEL_SLOT))
-		if initFuelData and initFuelData.name ~= "minecraft:coal" then
+		if initFuelData and not helper.stringEndsWith(initFuelData.name, "coal") then
 			wrapt.select(slots.get(FUEL_SLOT))
 			wrapt.drop()
 		end

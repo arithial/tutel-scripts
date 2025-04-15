@@ -36,24 +36,27 @@ smove.print_status=false -- print messages when homing (for debugging)
 
 -- Default crops and seeds configuration
 local crops = {
-  crop1 = { slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
-  crop2 = { slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrots", age = 7 },
-  crop3 = { slotPosition = 4, crop = "minecraft:potatoes", seed = "minecraft:potatoes", age = 7 },
-  crop4 = { slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
+  crop1 = {sortSeeds = true, slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
+  crop2 = {sortSeeds = false, slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrots", age = 7 },
+  crop3 = {sortSeeds = false, slotPosition = 4, crop = "minecraft:potatoes", seed = "minecraft:potatoes", age = 7 },
+  crop4 = {sortSeeds = true, slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
 }
 
 -- Function to load crop configuration from file
 local function loadCropConfig()
-  local file = fs.open('crop.config', 'r')
+  local file = fs.open('crops.config', 'r')
   if file then
     for cropType, config in pairs(crops) do
       local cropLine = file.readLine()
       local seedLine = file.readLine()
       local ageLine = file.readLine()
+      local sort = file.readLine()
+
       if cropLine and seedLine and ageLine then
         config.crop = cropLine
         config.seed = seedLine
         config.age = tonumber(ageLine) or config.age
+        config.sortSeeds = (sort and string.lower(sort))=="true" and true or false;
       end
     end
     file.close()
@@ -65,6 +68,8 @@ local function loadCropConfig()
       file.writeLine(config.crop)
       file.writeLine(config.seed)
       file.writeLine(config.age)
+      file.writeLine(config.sortSeeds)
+
     end
     file.close()
   end
@@ -219,7 +224,7 @@ local function organizeSeeds(cropBlock)
   -- We only organize seeds for wheat and beetroots (which use dedicated slots)
   local seedType, dedicatedSlot
   for cropType, config in pairs(crops) do
-    if cropBlock ==config.crop then
+    if cropBlock ==config.crop and config.sortSeeds then
       seedType = config.seed
       dedicatedSlot = config.slotPosition
     end
