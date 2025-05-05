@@ -12,8 +12,7 @@ local farmConfig = {
   targetStartItem = "minecraft:oak_fence",
   targetBorder = "minecraft:spruce_fence",
   storageTag = "enderstorage:ender_chest",
-  waitTime = 150,
-  enderChest = false
+  waitTime = 150
 }
 stringtoboolean={ ["true"]=true, ["false"]=false }
 
@@ -36,34 +35,11 @@ local refuel_function = function()
   return isFueled()
 end -- assign this function to allow smove to refuel and return to its previous position instead of throwing an error when critical fuel levels are reached. Also must return true on success.
 
-local ender_refuel = function()
-  local fuel = turtle.getFuelLevel()
-  print("Fuel low (" .. fuel .. "); Ender refueling...")
-  local chest = turtle.getItemDetail(1)
-  if chest then
-    if turtle.inspectUp() then
-      turtle.digUp()
-    end
-    turtle.select(1)
-    turtle.placeUp()
-    if turtle.suckUp(fuelSuckCount) then
-      turtle.refuel()
-    end
-    if turtle.getItemDetail(1) then
-      turtle.select(1)
-      turtle.drop()
-    end
-    turtle.select(1)
-    turtle.digUp()
-    return isFueled()
-  end
-  return false
-end
 --------------------------------------------------
 -- SMOVE
 --------------------------------------------------
 require("smove")
-smove.self_refuel= ender_refuel -- assign this function to allow smove to refuel on the go. Return true on success
+smove.self_refuel= function() return false  end -- assign this function to allow smove to refuel on the go. Return true on success
 smove.home_refuel=refuel_function
 smove.panic=function(reason) print(reason) end -- what to do when smove has failed to return to the starting position, for example send an sos over a wireless modem
 smove.home_on_fail=false -- set this to true to return home if movement fails
@@ -188,11 +164,7 @@ end
 local function fuelCheck()
   local fuelLevel = turtle.getFuelLevel()
   if fuelLevel < lowFuelThreshold then
-    if farmConfig.enderChest then
-      ender_refuel()
-    else
       refuel_function()
-    end
   else
     print("Fuel level sufficient (" .. fuelLevel .. ").")
   end
@@ -204,9 +176,6 @@ end
 local function depositOperations()
   -- Deposit the entire inventory into the chest in front.
   local start = 1
-  if farmConfig.enderChest then
-    start = 2
-  end
   for slot = start, 16 do
     turtle.select(slot)
     turtle.drop()

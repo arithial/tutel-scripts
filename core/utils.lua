@@ -74,5 +74,28 @@ return {
         local data = file.readAll()
         file.close()
         return data
+    end,
+    ender_refuel = function()
+        local fuel = turtle.getFuelLevel()
+        print("Fuel low (" .. fuel .. "); Ender refueling...")
+        local chest = turtle.getItemDetail(1)
+        if chest then
+            if turtle.inspectUp() then
+                turtle.digUp()
+            end
+            turtle.select(1)
+            turtle.placeUp()
+            if turtle.suckUp(fuelSuckCount) then
+                turtle.refuel()
+            end
+            if turtle.getItemDetail(1) then
+                turtle.select(1)
+                turtle.drop()
+            end
+            turtle.select(1)
+            turtle.digUp()
+            return true
+        end
+        return false
     end
 }
