@@ -1,5 +1,6 @@
 -- ==================================================
 -- Thank you for using Beni's Farm Script!
+-- Now Improved By Aram'lor
 -- ==================================================
 --------------------------------------------------
 -- CONFIGURATION VARIABLES
@@ -17,6 +18,7 @@ local refuel_function = function()
     turtle.refuel()
   end
   turtle.turnLeft()    -- Restore original facing.
+  print("Refueled level ("..turtle.getFuelLevel()..")")
   return fuel < lowFuelThreshold
 end -- assign this function to allow smove to refuel and return to its previous position instead of throwing an error when critical fuel levels are reached. Also must return true on success.
 --------------------------------------------------
@@ -83,7 +85,7 @@ end
 local targetStartItem = "minecraft:oak_fence"
 local targetBorder = "minecraft:spruce_fence"
 local storageTag = "enderstorage:ender_chest"
-local waitTime = 300
+local waitTime = 150
 
 local file=fs.open('farm.config','r')
 if file then
