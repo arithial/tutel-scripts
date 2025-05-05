@@ -11,6 +11,7 @@ local lowFuelThreshold = fuelSuckCount * 8
 --------------------------------------------------
 
 local refuel_function = function()
+  local fuel = turtle.getFuelLevel()
   print("Fuel low (" .. fuel .. "); refueling...")
   turtle.turnRight()   -- Face refuel Ender Chest.
   turtle.suck(fuelSuckCount)
@@ -19,7 +20,6 @@ local refuel_function = function()
     turtle.refuel()
   end
   turtle.turnLeft()    -- Restore original facing.
-  local fuel = turtle.getFuelLevel()
   return fuel < lowFuelThreshold
 end -- assign this function to allow smove to refuel and return to its previous position instead of throwing an error when critical fuel levels are reached. Also must return true on success.
 
