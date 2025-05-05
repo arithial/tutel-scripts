@@ -6,9 +6,6 @@
 --------------------------------------------------
 local fuelSuckCount = 64         -- Number of fuel items (e.g., coal) to suck at start.
 local lowFuelThreshold = fuelSuckCount * 8
---------------------------------------------------
--- SMOVE
---------------------------------------------------
 
 local refuel_function = function()
   local fuel = turtle.getFuelLevel()
@@ -22,7 +19,9 @@ local refuel_function = function()
   turtle.turnLeft()    -- Restore original facing.
   return fuel < lowFuelThreshold
 end -- assign this function to allow smove to refuel and return to its previous position instead of throwing an error when critical fuel levels are reached. Also must return true on success.
-
+--------------------------------------------------
+-- SMOVE
+--------------------------------------------------
 require("smove")
 smove.self_refuel=function() return false end -- assign this function to allow smove to refuel on the go. Return true on success
 smove.home_refuel=refuel_function

@@ -38,8 +38,8 @@ smove.print_status=false -- print messages when homing (for debugging)
 local crops = {
   crop1 = {sortSeeds = true, slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
   crop2 = {sortSeeds = false, slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrot", age = 7 },
-  crop3 = {sortSeeds = false, slotPosition = 4, crop = "minecraft:potatoes", seed = "minecraft:potato", age = 7 },
-  crop4 = {sortSeeds = true, slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
+  crop3 = {sortSeeds = false, slotPosition = 4, crop = "expandeddelight:sweet_potato_crop", seed = "expandeddelight:sweet_potato", age = 7 },
+  crop4 = {sortSeeds = false, slotPosition = 5, crop = "farmersdelight:onions", seed = "farmersdelight:onion", age = 7 }
 }
 
 -- Function to load crop configuration from file
@@ -81,9 +81,9 @@ end
 --------------------------------------------------
 --local args = {...}
 
-local targetStartItem = "minecraft:orange_stained_glass_pane"
-local targetBorder = "minecraft:glass_pane"
-local storageTag = "c:chests"
+local targetStartItem = "minecraft:oak_fence"
+local targetBorder = "minecraft:spruce_fence"
+local storageTag = "enderstorage:ender_chest"
 local waitTime = 300
 
 local file=fs.open('farm.config','r')
@@ -271,9 +271,9 @@ end
 local function attemptToPlant(cropBlock)
   -- Map the crop block to the seed item and dedicated slot.
   local seedType, dedicatedSlot
-    -- Default to wheat if unknown.
-    seedType = crops["crop1"].seed
-    dedicatedSlot = 2
+  -- Default to wheat if unknown.
+  seedType = crops["crop1"].seed
+  dedicatedSlot = 2
   for cropType, config in pairs(crops) do
     if cropBlock ==config.crop then
       seedType = config.seed
@@ -456,7 +456,7 @@ local function mainFarmingProcess()
 
       local successFront, dataFront = turtle.inspect()
       if successFront and (dataFront.name ==targetBorder) then
-         break  -- End of current row.
+        break  -- End of current row.
       end
       turtle.forward()
     end
