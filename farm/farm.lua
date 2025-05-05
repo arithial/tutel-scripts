@@ -39,7 +39,7 @@ local crops = {
   crop1 = {sortSeeds = true, slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
   crop2 = {sortSeeds = false, slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrot", age = 7 },
   crop3 = {sortSeeds = false, slotPosition = 4, crop = "expandeddelight:sweet_potato_crop", seed = "expandeddelight:sweet_potato", age = 7 },
-  crop4 = {sortSeeds = true, slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
+  crop4 = {sortSeeds = true, slotPosition = 5, crop = "farmersdelight:onions", seed = "farmersdelight:onion", age = 7 }
 }
 
 -- Function to load crop configuration from file
