@@ -35,12 +35,10 @@ local refuel_function = function()
   turtle.turnLeft()    -- Restore original facing.
   return isFueled()
 end -- assign this function to allow smove to refuel and return to its previous position instead of throwing an error when critical fuel levels are reached. Also must return true on success.
---------------------------------------------------
--- SMOVE
---------------------------------------------------
-require("smove")
-smove.self_refuel=function()
 
+local ender_refuel = function()
+  local fuel = turtle.getFuelLevel()
+  print("Fuel low (" .. fuel .. "); Ender refueling...")
   local chest = turtle.getItemDetail(1)
   if chest then
     if turtle.inspectUp() then
@@ -49,7 +47,7 @@ smove.self_refuel=function()
     turtle.select(1)
     turtle.placeUp()
     if turtle.suckUp(fuelSuckCount) then
-        turtle.refuel()
+      turtle.refuel()
     end
     if turtle.getItemDetail(1) then
       turtle.select(1)
@@ -60,7 +58,12 @@ smove.self_refuel=function()
     return isFueled()
   end
   return false
-end -- assign this function to allow smove to refuel on the go. Return true on success
+end
+--------------------------------------------------
+-- SMOVE
+--------------------------------------------------
+require("smove")
+smove.self_refuel= ender_refuel -- assign this function to allow smove to refuel on the go. Return true on success
 smove.home_refuel=refuel_function
 smove.panic=function(reason) print(reason) end -- what to do when smove has failed to return to the starting position, for example send an sos over a wireless modem
 smove.home_on_fail=false -- set this to true to return home if movement fails
@@ -183,13 +186,13 @@ end
 -- FUEL CHECK ROUTINE
 --------------------------------------------------
 local function fuelCheck()
-  if farmConfig.enderChest then
-      print("Ender refueling enabled...")
-      return
-  end
   local fuelLevel = turtle.getFuelLevel()
   if fuelLevel < lowFuelThreshold then
-    refuel_function()
+    if farmConfig.enderChest then
+      ender_refuel()
+    else
+      refuel_function()
+    end
   else
     print("Fuel level sufficient (" .. fuelLevel .. ").")
   end
