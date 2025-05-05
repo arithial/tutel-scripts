@@ -7,6 +7,13 @@
 --------------------------------------------------
 local fuelSuckCount = 64         -- Number of fuel items (e.g., coal) to suck at start.
 local lowFuelThreshold = fuelSuckCount * 8
+local utils = require("core/utils")
+
+function isFueled()
+  local fuel = turtle.getFuelLevel()
+  print("Refueled level ("..fuel..")")
+  return fuel < lowFuelThreshold
+end
 
 local refuel_function = function()
   local fuel = turtle.getFuelLevel()
@@ -18,14 +25,34 @@ local refuel_function = function()
     turtle.refuel()
   end
   turtle.turnLeft()    -- Restore original facing.
-  print("Refueled level ("..turtle.getFuelLevel()..")")
-  return fuel < lowFuelThreshold
+  return isFueled()
 end -- assign this function to allow smove to refuel and return to its previous position instead of throwing an error when critical fuel levels are reached. Also must return true on success.
 --------------------------------------------------
 -- SMOVE
 --------------------------------------------------
 require("smove")
-smove.self_refuel=function() return false end -- assign this function to allow smove to refuel on the go. Return true on success
+smove.self_refuel=function()
+
+  local chest = turtle.getItemDetail(1)
+  if chest then
+    if turtle.inspectUp() then
+      turtle.digUp()
+    end
+    turtle.select(1)
+    turtle.placeUp()
+    if turtle.suckUp(fuelSuckCount) then
+        turtle.refuel()
+    end
+    if turtle.getItemDetail(1) then
+      turtle.select(1)
+      turtle.drop()
+    end
+    turtle.select(1)
+    turtle.digUp()
+    return isFueled()
+  end
+  return false
+end -- assign this function to allow smove to refuel on the go. Return true on success
 smove.home_refuel=refuel_function
 smove.panic=function(reason) print(reason) end -- what to do when smove has failed to return to the starting position, for example send an sos over a wireless modem
 smove.home_on_fail=false -- set this to true to return home if movement fails
@@ -45,34 +72,10 @@ local crops = {
 
 -- Function to load crop configuration from file
 local function loadCropConfig()
-  local file = fs.open('crops.cfg', 'r')
-  if file then
-    for cropType, config in pairs(crops) do
-      local cropLine = file.readLine()
-      local seedLine = file.readLine()
-      local ageLine = file.readLine()
-      local sort = file.readLine()
-
-      if cropLine and seedLine and ageLine then
-        config.crop = cropLine
-        config.seed = seedLine
-        config.age = tonumber(ageLine) or config.age
-        config.sortSeeds = (sort and string.lower(sort))=="true" and true or false;
-      end
-    end
-    file.close()
+  if utils.configExists("crop") then
+    farmConfig = utils.loadConfig("crop")
   else
-    print("No crop.config file found. Creating default file with default crop, seed, and age configuration.")
-    file = fs.open('crops.cfg', 'w')
-    for _, cropType in ipairs({ "crop1", "crop2", "crop3", "crop4" }) do
-      local config = crops[cropType]
-      file.writeLine(config.crop)
-      file.writeLine(config.seed)
-      file.writeLine(config.age)
-      file.writeLine(config.sortSeeds)
-
-    end
-    file.close()
+    utils.createConfig(farmConfig,"crop")
   end
 end
 
@@ -80,28 +83,18 @@ end
 --------------------------------------------------
 -- CONFIG SETUP
 --------------------------------------------------
---local args = {...}
-
-local targetStartItem = "minecraft:oak_fence"
-local targetBorder = "minecraft:spruce_fence"
-local storageTag = "enderstorage:ender_chest"
-local waitTime = 150
-
-local file=fs.open('farm.config','r')
-if file then
-  targetStartItem = file.readLine()
-  targetBorder = file.readLine()
-  storageTag = file.readLine()
-  waitTime = tonumber(file.readLine())
-  file.close()
+local farmConfig = {
+  targetStartItem = "minecraft:oak_fence",
+  targetBorder = "minecraft:spruce_fence",
+  storageTag = "enderstorage:ender_chest",
+  waitTime = 150,
+  enderChest = false
+}
+stringtoboolean={ ["true"]=true, ["false"]=false }
+if utils.configExists("farm") then
+  farmConfig = utils.loadConfig("farm")
 else
-  file=fs.open('farm.config','w+')
-  file.writeLine(targetStartItem)
-  file.writeLine(targetBorder)
-  file.writeLine(storageTag)
-  file.writeLine(waitTime)
-  file.flush()
-  file.close()
+  utils.createConfig(farmConfig,"farm")
 end
 --------------------------------------------------
 -- CLEAR CONSOLE
@@ -202,7 +195,11 @@ end
 --------------------------------------------------
 local function depositOperations()
   -- Deposit the entire inventory into the chest in front.
-  for slot = 1, 16 do
+  local start = 1
+  if enderChest then
+    start = 2
+  end
+  for slot = start, 16 do
     turtle.select(slot)
     turtle.drop()
   end
