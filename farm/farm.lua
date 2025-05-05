@@ -4,7 +4,7 @@
 --------------------------------------------------
 -- CONFIGURATION VARIABLES
 --------------------------------------------------
-local fuelSuckCount = 10         -- Number of fuel items (e.g., coal) to suck at start.
+local fuelSuckCount = 64         -- Number of fuel items (e.g., coal) to suck at start.
 local lowFuelThreshold = fuelSuckCount * 8
 --------------------------------------------------
 -- SMOVE
