@@ -81,9 +81,9 @@ local crops = {
 -- Function to load crop configuration from file
 local function loadCropConfig()
   if utils.configExists("crop") then
-    farmConfig = utils.loadConfig("crop")
+    crops = utils.loadConfig("crop")
   else
-    utils.createConfig(farmConfig,"crop")
+    utils.createConfig(crops,"crop")
   end
 end
 
@@ -183,6 +183,10 @@ end
 -- FUEL CHECK ROUTINE
 --------------------------------------------------
 local function fuelCheck()
+  if farmConfig.enderChest then
+      print("Ender refueling enabled...")
+      return
+  end
   local fuelLevel = turtle.getFuelLevel()
   if fuelLevel < lowFuelThreshold then
     refuel_function()
