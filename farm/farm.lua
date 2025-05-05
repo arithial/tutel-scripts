@@ -38,7 +38,7 @@ smove.print_status=false -- print messages when homing (for debugging)
 local crops = {
   crop1 = {sortSeeds = true, slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
   crop2 = {sortSeeds = false, slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrot", age = 7 },
-  crop3 = {sortSeeds = false, slotPosition = 4, crop = "minecraft:potatoes", seed = "minecraft:potato", age = 7 },
+  crop3 = {sortSeeds = false, slotPosition = 4, crop = "expandeddelight:sweet_potato_crop", seed = "expandeddelight:sweet_potato", age = 7 },
   crop4 = {sortSeeds = true, slotPosition = 5, crop = "minecraft:beetroots", seed = "minecraft:beetroot_seeds", age = 3 }
 }
 
@@ -81,9 +81,9 @@ end
 --------------------------------------------------
 --local args = {...}
 
-local targetStartItem = "minecraft:orange_stained_glass_pane"
-local targetBorder = "minecraft:glass_pane"
-local storageTag = "c:chests"
+local targetStartItem = "minecraft:oak_fence"
+local targetBorder = "minecraft:spruce_fence"
+local storageTag = "enderstorage:ender_chest"
 local waitTime = 300
 
 local file=fs.open('farm.config','r')
