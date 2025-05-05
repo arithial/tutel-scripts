@@ -132,7 +132,7 @@ local function positionTurtle()
     local successDown, dataDown = turtle.inspectDown()
     if successDown and dataDown.name == "minecraft:water" then
       local successFront, dataFront = turtle.inspect()
-      if successFront and dataFront and dataFront.tags and dataFront.tags[storageTag] then
+      if successFront and dataFront and dataFront.tags and (dataFront.tags[storageTag] or dataFront.name == storageTag ) then
         print("Position OK.")
         positioned = true
       else
