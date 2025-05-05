@@ -8,6 +8,14 @@
 local fuelSuckCount = 64         -- Number of fuel items (e.g., coal) to suck at start.
 local lowFuelThreshold = fuelSuckCount * 8
 local utils = require("core/utils")
+local farmConfig = {
+  targetStartItem = "minecraft:oak_fence",
+  targetBorder = "minecraft:spruce_fence",
+  storageTag = "enderstorage:ender_chest",
+  waitTime = 150,
+  enderChest = false
+}
+stringtoboolean={ ["true"]=true, ["false"]=false }
 
 function isFueled()
   local fuel = turtle.getFuelLevel()
@@ -83,14 +91,7 @@ end
 --------------------------------------------------
 -- CONFIG SETUP
 --------------------------------------------------
-local farmConfig = {
-  targetStartItem = "minecraft:oak_fence",
-  targetBorder = "minecraft:spruce_fence",
-  storageTag = "enderstorage:ender_chest",
-  waitTime = 150,
-  enderChest = false
-}
-stringtoboolean={ ["true"]=true, ["false"]=false }
+
 if utils.configExists("farm") then
   farmConfig = utils.loadConfig("farm")
 else
@@ -101,7 +102,7 @@ end
 term.clear()
 term.setCursorPos(1, 1)
 --------------------------------------------------
-print("Using " .. targetStartItem .. " for positioning and " .. targetBorder .. " for border.")
+print("Using " .. farmConfig.targetStartItem .. " for positioning and " .. farmConfig.targetBorder .. " for border.")
 
 --------------------------------------------------
 -- POSITIONING ROUTINE
@@ -126,7 +127,7 @@ local function positionTurtle()
     local successDown, dataDown = turtle.inspectDown()
     if successDown and dataDown.name == "minecraft:water" then
       local successFront, dataFront = turtle.inspect()
-      if successFront and dataFront and dataFront.tags and (dataFront.tags[storageTag] or dataFront.name == storageTag ) then
+      if successFront and dataFront and dataFront.tags and (dataFront.tags[farmConfig.storageTag] or dataFront.name == farmConfig.storageTag ) then
         print("Position OK.")
         positioned = true
       else
@@ -134,9 +135,9 @@ local function positionTurtle()
         if successFront then
           if dataFront.name == "minecraft:air" then
             turtle.forward()
-          elseif dataFront.name == targetBorder then
+          elseif dataFront.name == farmConfig.targetBorder then
             turtle.turnLeft()
-          elseif dataFront.name == targetStartItem then
+          elseif dataFront.name == farmConfig.targetStartItem then
             turtle.down()
           else
             turtle.forward()
@@ -151,9 +152,9 @@ local function positionTurtle()
       if successFront then
         if dataFront.name == "minecraft:air" then
           turtle.forward()
-        elseif dataFront.name == targetBorder then
+        elseif dataFront.name == farmConfig.targetBorder then
           turtle.turnLeft()
-        elseif dataFront.name == targetStartItem then
+        elseif dataFront.name == farmConfig.targetStartItem then
           turtle.down()
         else
           turtle.forward()
@@ -196,7 +197,7 @@ end
 local function depositOperations()
   -- Deposit the entire inventory into the chest in front.
   local start = 1
-  if enderChest then
+  if farmConfig.enderChest then
     start = 2
   end
   for slot = start, 16 do
@@ -384,9 +385,9 @@ local function checkPlantGrowth()
     end
 
     if not firstOk then
-      print("First adjacent crop not fully grown; waiting " .. waitTime .. " seconds.")
+      print("First adjacent crop not fully grown; waiting " .. farmConfig.waitTime .. " seconds.")
       turtle.turnRight()  -- Revert orientation.
-      sleep(waitTime)
+      sleep(farmConfig.waitTime)
     else
       turtle.turnLeft()
       local success2, data2 = turtle.inspect()
@@ -453,7 +454,7 @@ local function mainFarmingProcess()
       end
 
       local successFront, dataFront = turtle.inspect()
-      if successFront and (dataFront.name ==targetBorder) then
+      if successFront and (dataFront.name ==farmConfig.targetBorder) then
          break  -- End of current row.
       end
       turtle.forward()
@@ -462,7 +463,7 @@ local function mainFarmingProcess()
     if row % 2 == 1 then
       turtle.turnLeft()
       local successCheck, dataCheck = turtle.inspect()
-      if successCheck and (dataCheck.name == targetBorder) then
+      if successCheck and (dataCheck.name == farmConfig.targetBorder) then
         break
       else
         turtle.forward()
@@ -471,7 +472,7 @@ local function mainFarmingProcess()
     else
       turtle.turnRight()
       local successCheck, dataCheck = turtle.inspect()
-      if successCheck and (dataCheck.name == targetBorder) then
+      if successCheck and (dataCheck.name == farmConfig.targetBorder) then
         break
       else
         turtle.forward()
