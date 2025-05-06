@@ -59,7 +59,7 @@ local function createInstaller(manifest)
     local progress = main:addProgressBar()
                          :setPosition(2, 4)
                          :setSize(30, 1)
-                         :setBackgroundColor(colors.gray)
+                         :setBackground(colors.gray)
                          :setProgressColor(colors.lime)
                          :setProgress(0)
 
@@ -76,12 +76,16 @@ local function createInstaller(manifest)
             optList:addItem(file.description or file.path, file)
         end
     end
+    local installButton = main:addButton()
+                              :setText("Install")
+                              :setPosition(2, 3)
+                              :setSize(30, 1)
 
 
     local function install()
         -- Calculate total files to install
         local totalFiles = #manifest.files.required
-        local selectedItems = optList:getSelected()
+        local selectedItems = optList:getSelectedItem()
         if selectedItems then
             totalFiles = totalFiles + #selectedItems
         end
@@ -106,7 +110,7 @@ local function createInstaller(manifest)
 
         -- Install selected optional files
         if manifest.files.optional then
-            local selected = optList:getSelected()
+            local selected = optList:getSelectedItem()
             if selected then
                 for _, index in pairs(selected) do
                     local file = manifest.files.optional[index]

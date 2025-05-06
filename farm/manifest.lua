@@ -10,9 +10,7 @@ return {
             {
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/core/utils.lua",
                 path = "core/utils.lua"
-            }
-        },
-        optional = {
+            },
             {
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/farm/farm.lua",
                 path = "farm/farm.lua",
@@ -23,6 +21,8 @@ return {
                 path = "farm/startup.lua",
                 description = "Farm startup script"
             }
+        },
+        optional = {
         }
     },
     startup = {

@@ -103,21 +103,21 @@ self = {
     ender_refuel = function()
         local fuel = turtle.getFuelLevel()
         print("Fuel low (" .. fuel .. "); Ender refueling...")
-        local chest = turtle.getItemDetail(enderFuelSlot)
+        local chest = turtle.getItemDetail(self.enderFuelSlot)
         if chest then
             if turtle.inspectUp() then
                 turtle.digUp()
             end
-            turtle.select(enderFuelSlot)
+            turtle.select(self.enderFuelSlot)
             turtle.placeUp()
-            if turtle.suckUp(fuelSuckCount) then
+            if turtle.suckUp(self.fuelSuckCount) then
                 turtle.refuel()
             end
-            if turtle.getItemDetail(enderFuelSlot) then
-                turtle.select(enderFuelSlot)
+            if turtle.getItemDetail(self.enderFuelSlot) then
+                turtle.select(self.enderFuelSlot)
                 turtle.drop()
             end
-            turtle.select(enderFuelSlot)
+            turtle.select(self.enderFuelSlot)
             turtle.digUp()
             return true
         end
@@ -126,7 +126,7 @@ self = {
 
     getItemCount = function(itemIdentifier, inventory)
         local totalCount = 0
-        local slots = inventory.size()
+        local slots = self.getInventorySize(inventory)
         for slot = 1, slots do
             local item = inventory.getItemDetail(slot)
             if item then
@@ -139,8 +139,15 @@ self = {
 
         return totalCount
     end,
+    getInventorySize = function(inventory) 
+        local slots = 16
+        if inventory.size then
+            slots = inventory.size()
+        end
+        return slots
+    end,
     clearSlot = function(slotToClear, inventory)
-        local slots = inventory.size()
+        local slots = self.getInventorySize(inventory)
         local itemInSlot = inventory.getItemDetail(slotToClear)
 
         -- If slot is already empty, return true
@@ -166,7 +173,7 @@ self = {
     end,
 
     sortItemsToSlot = function(itemIdentifier, targetSlot, inventory)
-        local slots = inventory.size()
+        local slots = self.getInventorySize(inventory)
 
         -- First check if target slot already has the correct item
         local targetItem = inventory.getItemDetail(targetSlot)

@@ -7,7 +7,7 @@
 --------------------------------------------------
 local fuelSuckCount = 64         -- Number of fuel items (e.g., coal) to suck at start.
 local lowFuelThreshold = fuelSuckCount * 8
-local utils = require("core/utils")
+local utils = require("./core/utils")
 local farmConfig = {
   targetStartItem = "minecraft:oak_fence",
   targetBorder = "minecraft:spruce_fence",
@@ -38,7 +38,7 @@ end -- assign this function to allow smove to refuel and return to its previous 
 --------------------------------------------------
 -- SMOVE
 --------------------------------------------------
-require("smove")
+require("./smove")
 smove.self_refuel= function() return false  end -- assign this function to allow smove to refuel on the go. Return true on success
 smove.home_refuel=refuel_function
 smove.panic=function(reason) print(reason) end -- what to do when smove has failed to return to the starting position, for example send an sos over a wireless modem
@@ -164,7 +164,7 @@ end
 local function fuelCheck()
   local fuelLevel = turtle.getFuelLevel()
   if fuelLevel < lowFuelThreshold then
-      refuel_function()
+    refuel_function()
   else
     print("Fuel level sufficient (" .. fuelLevel .. ").")
   end
@@ -246,9 +246,9 @@ end
 local function attemptToPlant(cropBlock)
   -- Map the crop block to the seed item and dedicated slot.
   local seedType, dedicatedSlot
-    -- Default to wheat if unknown.
-    seedType = crops["crop1"].seed
-    dedicatedSlot = 2
+  -- Default to wheat if unknown.
+  seedType = crops["crop1"].seed
+  dedicatedSlot = 2
   for cropType, config in pairs(crops) do
     if cropBlock ==config.crop then
       seedType = config.seed
@@ -431,7 +431,7 @@ local function mainFarmingProcess()
 
       local successFront, dataFront = turtle.inspect()
       if successFront and (dataFront.name ==farmConfig.targetBorder) then
-         break  -- End of current row.
+        break  -- End of current row.
       end
       turtle.forward()
     end

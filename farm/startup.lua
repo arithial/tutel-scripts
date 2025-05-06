@@ -1,1 +1,1 @@
-shell.run("farm")
+shell.run("./farm/farm")
