@@ -50,6 +50,33 @@ local function createInstaller(manifest)
     main:setBackground(colors.lightGray)
 
     -- ... other UI elements remain same ...
+    main:addLabel()
+        :setText(manifest.name .. " v" .. manifest.version)
+        :setPosition(2, 2)
+        :setForeground(colors.black)
+
+    -- Progress bar in Basalt2
+    local progress = main:addProgressBar()
+                         :setPosition(2, 4)
+                         :setSize(30, 1)
+                         :setBackgroundColor(colors.gray)
+                         :setProgressColor(colors.lime)
+                         :setProgress(0)
+
+    local status = main:addLabel()
+                       :setPosition(2, 6)
+                       :setForeground(colors.black)
+
+    -- Optional components selection
+    local optList = main:addList()
+                        :setPosition(2, 8)
+                        :setSize(30, 6)
+    if manifest.files.optional then
+        for _, file in ipairs(manifest.files.optional) do
+            optList:addItem(file.description or file.path, file)
+        end
+    end
+
 
     local function install()
         -- Calculate total files to install
