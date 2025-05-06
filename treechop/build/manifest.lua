@@ -19,10 +19,5 @@ return {
         optional = {}  -- No optional files for this script
     },
     startup = {
-        {
-            type = "copy",
-            source = "config/module.lua",
-            destination = "/.config/module.lua"
-        }
     }
 }
