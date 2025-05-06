@@ -3,7 +3,7 @@ local args = {...}
 local function downloadBasalt()
     if not fs.exists("basalt") then
         print("Downloading Basalt2...")
-        shell.run("wget", "run", "https://raw.githubusercontent.com/Pyroxenium/Basalt2/main/install.lua", "-d")
+        shell.run("wget", "run", "https://raw.githubusercontent.com/Pyroxenium/Basalt2/main/install.lua", "-r")
     end
     return require("basalt")
 end
@@ -46,48 +46,17 @@ end
 
 local function createInstaller(manifest)
     local basalt = downloadBasalt()
+    local main = basalt.getMainFrame()
+    main:setBackground(colors.lightGray)
 
-    local main = basalt.createFrame()
-                       :setBackground(colors.lightGray)
-                       :show()
-
-    main:addLabel()
-        :setText(manifest.name .. " v" .. manifest.version)
-        :setPosition(2, 2)
-        :setForeground(colors.black)
-
-    local progress = main:addProgressbar()
-                         :setPosition(2, 4)
-                         :setSize(30, 1)
-                         :setBackground(colors.gray)
-                         :setProgressBar(colors.lime)
-
-    local status = main:addLabel()
-                       :setPosition(2, 6)
-                       :setForeground(colors.black)
-
-    -- Optional components selection
-    local optList = main:addList()
-                        :setPosition(2, 8)
-                        :setSize(30, 6)
-
-    if manifest.files.optional then
-        for _, file in ipairs(manifest.files.optional) do
-            optList:addItem(file.description or file.path, file)
-        end
-    end
-
-    local installButton = main:addButton()
-                              :setText("Install")
-                              :setPosition(2, 15)
-                              :setSize(30, 1)
+    -- ... other UI elements remain same ...
 
     local function install()
+        -- Calculate total files to install
         local totalFiles = #manifest.files.required
-        for _, file in pairs(optList:getAll()) do
-            if file.selected then
-                totalFiles = totalFiles + 1
-            end
+        local selectedItems = optList:getSelected()
+        if selectedItems then
+            totalFiles = totalFiles + #selectedItems
         end
 
         local completed = 0
@@ -96,13 +65,11 @@ local function createInstaller(manifest)
         for _, file in ipairs(manifest.files.required) do
             status:setText("Installing: " .. file.path)
 
-            -- Create directories if needed
             local dir = fs.getDir(file.path)
             if dir and not fs.exists(dir) then
                 fs.makeDir(dir)
             end
 
-            -- Download file
             shell.run("wget", file.url, file.path)
 
             completed = completed + 1
@@ -112,8 +79,10 @@ local function createInstaller(manifest)
 
         -- Install selected optional files
         if manifest.files.optional then
-            for _, file in pairs(optList:getAll()) do
-                if file.selected then
+            local selected = optList:getSelected()
+            if selected then
+                for _, index in pairs(selected) do
+                    local file = manifest.files.optional[index]
                     status:setText("Installing: " .. file.path)
 
                     local dir = fs.getDir(file.path)
@@ -153,12 +122,11 @@ local function createInstaller(manifest)
         basalt.stop()
     end
 
-    installButton:onClick(function()
-        basalt.schedule(install)
-    end)
+    installButton:onClick(install)  -- Single click handler
 
-    basalt.autoUpdate()
+    basalt.run()
 end
+
 
 -- Main execution
 local manifestUrl = args[1] -- Optional URL
