@@ -1,6 +1,7 @@
 return {
     name = "Turtle Farm",
     version = "1.0.0",
+    execute = "./startup/farm",
     files = {
         required = {
             {

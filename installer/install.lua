@@ -1,4 +1,22 @@
-local args = {...}
+local args = { ... }
+local function hasArg(flag)
+    for _, arg in ipairs(args) do
+        if string.lower(arg) == flag then
+            return true
+        end
+    end
+    return false
+end
+
+local forceInstall = hasArg("-f")
+local executeAfter = hasArg("-e")
+local manifestUrl = nil
+for _, arg in ipairs(args) do
+    if string.match(string.lower(arg), "^(https?://)?[%w-%.]+%.[%w-]+/[%w-%./%?=%%&]+") then
+        manifestUrl = arg
+        break
+    end
+end
 
 local function downloadBasalt()
     if not fs.exists("basalt") then
@@ -44,19 +62,118 @@ local function getManifest(manifestUrl)
     error("No valid manifest found. Please provide a manifest URL or ensure manifest.lua exists locally")
 end
 
-local function createInstaller(manifest)
+local function performInstall(manifest, selectedOptionals, onStatus)
+    if onStatus then
+        onStatus("Installing " .. manifest.name .. " v" .. manifest.version, 0)
+    end
+
+    -- Calculate total files to install
+    local totalFiles = #manifest.files.required
+    if selectedOptionals then
+        totalFiles = totalFiles + #selectedOptionals
+    end
+    if manifest.startup then
+        totalFiles = totalFiles + #manifest.startup
+    end
+
+    local completed = 0
+
+    -- Install required files
+    for _, file in ipairs(manifest.files.required) do
+        if onStatus then
+            onStatus("Downloading: " .. file.path)
+        end
+        if fs.exists(file.path) then
+            fs.delete(file.path)
+        end
+
+        local dir = fs.getDir(file.path)
+        if dir and not fs.exists(dir) then
+            fs.makeDir(dir)
+        end
+
+        shell.run("wget", file.url, file.path)
+        completed = completed + 1
+        if onStatus then
+            local progress = completed / totalFiles
+            onStatus("Downloaded: " .. file.path, progress)
+        end
+    end
+
+    -- Install selected optional files
+    if manifest.files.optional and selectedOptionals then
+        for _, index in pairs(selectedOptionals) do
+            local file = manifest.files.optional[index]
+            if onStatus then
+                onStatus("Downloading: " .. file.path)
+            end
+            if fs.exists(file.path) then
+                fs.delete(file.path)
+            end
+
+            local dir = fs.getDir(file.path)
+            if dir and not fs.exists(dir) then
+                fs.makeDir(dir)
+            end
+
+            shell.run("wget", file.url, file.path)
+            completed = completed + 1
+            if onStatus then
+                local progress = completed / totalFiles
+                onStatus("Downloaded: " .. file.path, progress)
+            end
+        end
+    end
+
+    -- Handle startup scripts
+    if manifest.startup then
+        for _, script in ipairs(manifest.startup) do
+            if onStatus then
+                onStatus("Setting up: " .. script.destination, completed / totalFiles)
+            end
+            if fs.exists(script.destination) then
+                fs.delete(script.destination)
+            end
+
+            local dir = fs.getDir(script.destination)
+            if dir and not fs.exists(dir) then
+                fs.makeDir(dir)
+            end
+
+            if script.type == "copy" then
+                fs.copy(script.source, script.destination)
+            elseif script.type == "move" then
+                fs.move(script.source, script.destination)
+            end
+            completed = completed + 1
+            onStatus("Set up: " .. script.destination, completed / totalFiles)
+
+        end
+    end
+
+    if onStatus then
+        onStatus("Installation complete!", 1)
+    end
+
+    if executeAfter and manifest.execute then
+        shell.run(manifest.execute)
+    elseif forceInstall then
+        os.reboot()
+    end
+end
+
+local function createInstallerGUI(manifest)
     local basalt = downloadBasalt()
     local main = basalt.getMainFrame()
     main:setBackground(colors.lightGray)
 
-    -- ... other UI elements remain same ...
     main:addLabel()
         :setText(manifest.name .. " v" .. manifest.version)
         :setPosition(2, 2)
         :setForeground(colors.black)
 
     -- Progress bar in Basalt2
-    local progress = main:addProgressBar()
+    local progressBar = main:addProgressBar()
                          :setPosition(2, 4)
                          :setSize(30, 1)
                          :setBackground(colors.gray)
@@ -80,86 +197,33 @@ local function createInstaller(manifest)
                               :setText("Install")
                               :setPosition(2, 3)
                               :setSize(30, 1)
-
-
+    local installing = false
     local function install()
-        -- Calculate total files to install
-        local totalFiles = #manifest.files.required
-        local selectedItems = optList:getSelectedItem()
-        if selectedItems then
-            totalFiles = totalFiles + #selectedItems
+        if installing then
+            return
         end
-
-        local completed = 0
-
-        -- Install required files
-        for _, file in ipairs(manifest.files.required) do
-            status:setText("Installing: " .. file.path)
-
-            local dir = fs.getDir(file.path)
-            if dir and not fs.exists(dir) then
-                fs.makeDir(dir)
+        installing = true
+        performInstall(manifest, optList:getSelectedItem(), function(msg, progress)
+            status:setText(msg)
+            if progress then
+                progressBar:setProgress(progress * 100)
             end
-
-            shell.run("wget", file.url, file.path)
-
-            completed = completed + 1
-            progress:setProgress((completed / totalFiles) * 100)
-            sleep(0.1)
-        end
-
-        -- Install selected optional files
-        if manifest.files.optional then
-            local selected = optList:getSelectedItem()
-            if selected then
-                for _, index in pairs(selected) do
-                    local file = manifest.files.optional[index]
-                    status:setText("Installing: " .. file.path)
-
-                    local dir = fs.getDir(file.path)
-                    if dir and not fs.exists(dir) then
-                        fs.makeDir(dir)
-                    end
-
-                    shell.run("wget", file.url, file.path)
-
-                    completed = completed + 1
-                    progress:setProgress((completed / totalFiles) * 100)
-                    sleep(0.1)
-                end
-            end
-        end
-
-        -- Handle startup scripts
-        if manifest.startup then
-            for _, script in ipairs(manifest.startup) do
-                status:setText("Setting up: " .. script.destination)
-
-                local dir = fs.getDir(script.destination)
-                if dir and not fs.exists(dir) then
-                    fs.makeDir(dir)
-                end
-
-                if script.type == "copy" then
-                    fs.copy(script.source, script.destination)
-                elseif script.type == "move" then
-                    fs.move(script.source, script.destination)
-                end
-            end
-        end
-
-        status:setText("Installation complete!")
-        sleep(1)
+        end)
+        installing = false
         basalt.stop()
     end
 
-    installButton:onClick(install)  -- Single click handler
-
+    installButton:onClick(install)
     basalt.run()
 end
 
-
 -- Main execution
-local manifestUrl = args[1] -- Optional URL
 local manifest = getManifest(manifestUrl)
-createInstaller(manifest)
+if forceInstall then
+    -- When using -f, install all required files and skip optional ones
+    performInstall(manifest, nil, function(msg, progress)
+        print(msg .. string.format(" Progress: %.1f%%", progress * 100))
+    end)
+else
+    createInstallerGUI(manifest)
+end

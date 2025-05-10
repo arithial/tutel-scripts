@@ -1,3 +1,79 @@
+local failPrefixes = {
+    "computercraft:",
+    "advancedperipherals:"
+}
+
+local function isFacingTutel(inspectFunc)
+    local success, data = inspectFunc()
+    if success then
+        return data.tags and data.tags["computercraft:turtle"]
+    end
+    return false
+end
+
+local function canDigBlock(inspectFunc)
+    local success, data = inspectFunc()
+    if success then
+        for _, prefix in ipairs(failPrefixes) do
+            if string.sub(data.name, 1, #prefix) == prefix then
+                print("Cannot dig " .. data.name)
+                return false, "Cannot dig protected block: " .. data.name
+            end
+        end
+
+        -- Check for bedrock
+        if data.name == "minecraft:bedrock" then
+            print("Reached bedrock")
+            return false, "Cannot dig bedrock"
+        end
+    end
+    return true
+end
+
+
+local function persistentDig(digFunc, inspectFunc, conflictingTutels)
+    local attempts = 1
+    
+    -- List of mod prefixes that should cause immediate failure
+
+    local continueDigging = true
+    while continueDigging do
+        -- Check what we're trying to dig
+        if isFacingTutel(inspectFunc) then
+            if attempts < 20 then
+                os.sleep(math.random(1,3)*0.5) -- Small delay between attempts
+            else
+                if conflictingTutels then
+                    conflictingTutels()
+                    return false, "Blocked by another turtle. Conflict resolution triggered."
+                else
+                    print("Emergency Fallback. Tutel Cannibalism!")
+                    continueDigging = digFunc()
+                end
+            end
+        else
+            local canDig, message = canDigBlock(inspectFunc)
+            if not canDig then
+                return false, message
+            end
+            continueDigging = digFunc()
+        end
+
+        attempts = attempts + 1
+        os.sleep(0.1)
+    end
+
+    -- If we reach here, we hit the timeout
+    -- One final check
+    local success, data = inspectFunc()
+
+    if success and data.name == "minecraft:bedrock" then
+        return false, "Cannot dig bedrock"
+    end
+    return true
+end
+
+
 self = {
     enderFuelSlot = 1,
     fuelSuckCount = 64, -- Number of fuel items (e.g., coal) to suck at start.
@@ -12,7 +88,7 @@ self = {
     isFueled = function(lowFuelThreshold)
         local fuel = turtle.getFuelLevel()
         print("Refueled level (" .. fuel .. ")")
-        return fuel < lowFuelThreshold
+        return fuel > lowFuelThreshold
     end,
 
     saveConfig = function(table, name)
@@ -147,8 +223,9 @@ self = {
         return slots
     end,
     clearSlot = function(slotToClear, inventory)
-        local slots = self.getInventorySize(inventory)
-        local itemInSlot = inventory.getItemDetail(slotToClear)
+        local actualInventory = inventory or turtle
+        local slots = self.getInventorySize(actualInventory)
+        local itemInSlot = actualInventory.getItemDetail(slotToClear)
 
         -- If slot is already empty, return true
         if not itemInSlot then
@@ -157,14 +234,14 @@ self = {
 
         -- Find first empty slot
         for slot = 1, slots do
-            if slot ~= slotToClear and not inventory.getItemDetail(slot) then
+            if slot ~= slotToClear and not actualInventory.getItemDetail(slot) then
                 -- For turtle inventory
-                if inventory == turtle then
+                if actualInventory == turtle then
                     turtle.select(slotToClear)
                     return turtle.transferTo(slot)
                 else
                     -- For regular inventories
-                    return inventory.moveTo(slotToClear, slot)
+                    return actualInventory.moveTo(slotToClear, slot)
                 end
             end
         end
@@ -346,7 +423,72 @@ self = {
         -- Return to original position
         turtle.back()
         return true
-    end
+    end,
+    -- Basic movement functions with dig capability
+    moveForward = function(steps, conflictingTutels)
+        steps = steps or 1
+        for i = 1, steps do
+            if not turtle.forward() then
+                local success, message = persistentDig(turtle.dig, turtle.inspect, conflictingTutels)
+                if not success then
+                    return false, message
+                end
+                if not turtle.forward() then
+                    return false, "Failed to move forward"
+                end
+            end
+        end
+        return true
+    end,
+
+
+    moveUp = function(steps, conflictingTutels)
+        steps = steps or 1
+        for i = 1, steps do
+            if not turtle.up() then
+                local success, message = persistentDig(turtle.digUp, turtle.inspectUp, conflictingTutels)
+                if not success then
+                    return false, message
+                end
+                if not turtle.up() then
+                    return false, "Failed to move up"
+                end
+            end
+        end
+        return true
+    end,
+
+    moveDown = function(steps, conflictingTutels)
+        steps = steps or 1
+        for i = 1, steps do
+            if not turtle.down() then
+                local success, message = persistentDig(turtle.digDown, turtle.inspectDown, conflictingTutels)
+                if not success then
+                    return false, message
+                end
+                if not turtle.down() then
+                    return false, "Failed to move down"
+                end
+            end
+        end
+        return true
+    end,
+
+    turnLeft = function(times)
+        times = times or 1
+        for i = 1, times do
+            turtle.turnLeft()
+        end
+        return true
+    end,
+
+    turnRight = function(times)
+        times = times or 1
+        for i = 1, times do
+            turtle.turnRight()
+        end
+        return true
+    end,
 
 
 }
