@@ -199,7 +199,7 @@ end
 local function run()
     initController()
 
-    modem.open(commons.ControllerChannel) -- Channel 1 for requests
+    modem.open(commons.controllerChannel) -- Channel 1 for requests
     print("Listening on channel 1 for requests")
 
     while true do
@@ -207,7 +207,7 @@ local function run()
 
         print(string.format("Received message on channel %d, reply to %d", channel, replyChannel))
 
-        if channel == commons.ControllerChannel then
+        if channel == commons.controllerChannel then
             local request = textutils.unserialize(message)
             if request and request.label then
                 if not turtleRegistry.turtles[request.label] then
@@ -216,7 +216,7 @@ local function run()
                 saveState()
                 if turtleRegistry.turtles[request.label].reboot then
                     print(request.label .. " has been marked for rebooting. Sending proper response")
-                    modem.transmit(replyChannel, commons.ControllerChannel, textutils.serialize({
+                    modem.transmit(replyChannel, commons.controllerChannel, textutils.serialize({
                         label = request.label,
                         type = commons.requestTypes.reboot
                     }))
@@ -224,7 +224,7 @@ local function run()
                     saveState() -- Save state after updating
                 elseif request.type == commons.requestTypes.statusRequest then
                     print("Status request received")
-                    modem.transmit(replyChannel, commons.ControllerChannel, textutils.serialize({
+                    modem.transmit(replyChannel, commons.controllerChannel, textutils.serialize({
                         type = commons.requestTypes.statusRequest,
                         state = ControllerState,
                         registry = turtleRegistry
@@ -252,7 +252,7 @@ local function run()
                     elseif newTransitionLayer > config.yMax then
                         newTransitionLayer = config.yMin
                     end
-                    modem.transmit(replyChannel, commons.ControllerChannel, textutils.serialize({
+                    modem.transmit(replyChannel, commons.controllerChannel, textutils.serialize({
                         type = commons.requestTypes.transitionRequest,
                         label = request.label,
                         transitionLayer = newTransitionLayer,
@@ -274,7 +274,7 @@ local function run()
                     print("Chunk assigned to: " .. request.label)
 
                     print(textutils.serialize(response))
-                    modem.transmit(replyChannel, commons.ControllerChannel, textutils.serialize(response))
+                    modem.transmit(replyChannel, commons.controllerChannel, textutils.serialize(response))
                     print("Sending chunk assignment to channel: " .. replyChannel)
                     printStatus()
                 end
