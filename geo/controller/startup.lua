@@ -1,0 +1,1 @@
+shell.run("installer","https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/controller/manifest.lua","-f","-e")

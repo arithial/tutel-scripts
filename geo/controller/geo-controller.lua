@@ -195,6 +195,7 @@ local function run()
                             ControllerState.turtleStatus[request.label].reboot then
                         print(request.label .. " has been marked for rebooting. Sending proper response")
                         response = {
+                            label = request.label,
                             type = "reboot"
                         }
                         ControllerState.turtleStatus[request.label].reboot = false
@@ -206,6 +207,7 @@ local function run()
                                 request.completedChunk
                         )
                         response = {
+                            label = request.label,
                             type = "chunk_assignment",
                             chunk = nextChunk
                         }

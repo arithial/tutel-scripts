@@ -25,7 +25,7 @@ local DEFAULT_CONFIG = {
     lowFuelThreshold = 1000,
     scanTimeout = 5,
     controllerChannel = 1,
-    replyChannel = 2,
+    replyChannel = math.random(3, 128),
     -- Scanner specific settings
     scanRadius = 8, -- Optimal radius for no fuel cost
     scanInterval = 7, -- How far to move between scans (slightly less than radius*2 for overlap)
@@ -33,7 +33,7 @@ local DEFAULT_CONFIG = {
 }
 
 local CONFIG_FILENAME = "debris_miner_config"
-local config =utils.getConfig(CONFIG_FILENAME, DEFAULT_CONFIG)
+local config = utils.getConfig(CONFIG_FILENAME, DEFAULT_CONFIG)
 local smartDetect = false
 local analyzeChunk = false
 for _, arg in ipairs(args) do
@@ -85,7 +85,7 @@ local currentEquipped = nil
 local function unequipPeripheral()
     if currentEquipped then
         local oldSlot = turtle.getSelectedSlot() -- Remember current slot
-       utils.clearSlot(currentEquipped, turtle)
+        utils.clearSlot(currentEquipped, turtle)
         turtle.select(currentEquipped)
         if turtle.equipRight() then
             print("Unequipped peripheral from slot " .. currentEquipped)
@@ -129,7 +129,7 @@ end
 local function doRefuel()
     print("Fuel low, refueling...")
     equipPeripheral(config.pickaxeSlot)
-   utils.ender_refuel(config.fuelChestSlot)
+    utils.ender_refuel(config.fuelChestSlot)
     turtle.select(5)
 end
 
@@ -241,18 +241,20 @@ end
 
 local function getAlternateFallback()
     local strategies = {
-        function() -- Strategy 1: Move diagonally
+        function()
+            -- Strategy 1: Move diagonally
             turtle.turnLeft()
             turtle.turnRight()
-           utils.moveForward(math.random(2, 6))
-           utils.moveUp(math.random(2, 6))
+            utils.moveForward(math.random(2, 6))
+            utils.moveUp(math.random(2, 6))
             return false
         end,
-        function() -- Strategy 2: Spiral up
+        function()
+            -- Strategy 2: Spiral up
             for i = 1, math.random(2, 4) do
-               utils.moveUp(1)
+                utils.moveUp(1)
                 turtle.turnRight()
-               utils.moveForward(1)
+                utils.moveForward(1)
             end
             return false
         end
@@ -267,12 +269,12 @@ local function verticalFallback()
     os.sleep(math.random(1, 3))
     turtle.turnLeft()
     local randomNum = math.random(2, 12)
-   utils.moveForward(randomNum, getAlternateFallback())
+    utils.moveForward(randomNum, getAlternateFallback())
     os.sleep(math.random(1, 6))
 
     turtle.turnRight()
     local randomNum = math.random(2, 8)
-   utils.moveForward(randomNum, getAlternateFallback())
+    utils.moveForward(randomNum, getAlternateFallback())
     os.sleep(math.random(1, 3))
     return false
 end
@@ -280,12 +282,12 @@ end
 local function horizontalFallback()
     os.sleep(math.random(1, 3))
     local randomNum = math.random(4, 12)
-   utils.moveUp(randomNum, getAlternateFallback())
+    utils.moveUp(randomNum, getAlternateFallback())
     os.sleep(math.random(1, 6))
 
     turtle.turnRight()
     local randomNum = math.random(2, 8)
-   utils.moveForward(randomNum, getAlternateFallback())
+    utils.moveForward(randomNum, getAlternateFallback())
     os.sleep(math.random(1, 3))
     return false
 end
@@ -333,7 +335,7 @@ local function moveToXZ(targetX, targetZ)
     local function determineMovementDirection()
         local x1, _, z1 = getPosition(true)
 
-        if not utils.moveForward(1,horizontalFallback) then
+        if not utils.moveForward(1, horizontalFallback) then
             error("Cannot determine direction - path blocked")
         end
 
@@ -501,7 +503,6 @@ local function moveToChunk()
     local centerX, centerZ = getChunkCenter()
     print("Moving to chunk center: (" .. centerX .. "," .. centerZ .. ")")
 
-
     moveToStartingYLevel()
 
     -- First move to Y=8 (starting height for ancient debris)
@@ -639,7 +640,7 @@ local function cleanup()
     -- Make sure to unequip any peripherals
     unequipPeripheral()
     -- Save state
-   utils.saveConfig(State, STATE_FILENAME)
+    utils.saveConfig(State, STATE_FILENAME)
 end
 
 -- Communication with controller
@@ -686,29 +687,32 @@ local function requestNewChunk()
             print("Received modem message on channel: " .. p2)
             if p2 == config.replyChannel then
                 local response = textutils.unserialize(p4)
-                if response and response.type == "chunk_assignment" then
-                    print("Received valid chunk assignment")
-                    print("New chunk: " .. textutils.serialize(response.chunk))
+                if response and response.label == os.getComputerLabel() then
+                    if response.type == "chunk_assignment" then
+                        print("Received valid chunk assignment")
+                        print("New chunk: " .. textutils.serialize(response.chunk))
 
-                    print("Closing reply channel")
-                    modem.close(config.replyChannel)
+                        print("Closing reply channel")
+                        modem.close(config.replyChannel)
 
-                    print("Re-equipping pickaxe")
-                    equipPeripheral(config.pickaxeSlot)
+                        print("Re-equipping pickaxe")
+                        equipPeripheral(config.pickaxeSlot)
 
-                    print("Updating state with new chunk")
-                    State.currentChunk = response.chunk
-                    State.scannedCoords = {}
-                    State.foundTargets = {}
-                   utils.saveConfig(State, STATE_FILENAME)
+                        print("Updating state with new chunk")
+                        State.currentChunk = response.chunk
+                        State.scannedCoords = {}
+                        State.foundTargets = {}
+                        utils.saveConfig(State, STATE_FILENAME)
 
-                    print("=== Chunk Request Complete ===")
-                    return true
-                elseif response and response.type == "reboot" then
-                    os.reboot()
-                else
-                    print("Received invalid or unexpected response type")
+                        print("=== Chunk Request Complete ===")
+                        return true
+                    elseif response and response.type == "reboot" then
+                        os.reboot()
+                    else
+                        print("Received invalid or unexpected response type")
+                    end
                 end
+
             else
                 print("Received message on unexpected channel: " .. p2)
             end
@@ -755,28 +759,28 @@ local function initialize()
         doRefuel()
     end
     movement.cleanup = handleInventory
-    movement.homeOnFail=false
-    movement.minFuelLevel=config.lowFuelThreshold
-   utils.enderFuelSlot = config.fuelChestSlot
+    movement.homeOnFail = false
+    movement.minFuelLevel = config.lowFuelThreshold
+    utils.enderFuelSlot = config.fuelChestSlot
     checkAndUnequipExistingPeripherals()
 
     -- Determine the turtle's initial facing direction
     print("Checking required items...")
-   utils.checkAndSort(SCANNER, 1, config.geoScannerSlot, turtle)
-   utils.checkAndSort(PICKAXE, 1, config.pickaxeSlot, turtle)
-   utils.checkAndSort(MODEM, 1, config.enderModemSlot, turtle)
+    utils.checkAndSort(SCANNER, 1, config.geoScannerSlot, turtle)
+    utils.checkAndSort(PICKAXE, 1, config.pickaxeSlot, turtle)
+    utils.checkAndSort(MODEM, 1, config.enderModemSlot, turtle)
     if not hasEnderChest(config.fuelChestSlot) then
-        return false, "Missing ender fuel chest in slot "..config.fuelChestSlot
+        return false, "Missing ender fuel chest in slot " .. config.fuelChestSlot
     end
     if not hasEnderChest(config.depositChestSlot) then
-        return false, "Missing ender deposit chest in slot "..config.depositChestSlot
+        return false, "Missing ender deposit chest in slot " .. config.depositChestSlot
     end
     return true
 end
 -- And in the main mining loop, add periodic cleanup:
 local function run()
     -- Load or initialize state
-    local saved =utils.getConfig(STATE_FILENAME, State)
+    local saved = utils.getConfig(STATE_FILENAME, State)
     State = saved
     local init, failReason = initialize()
     if not init then
@@ -824,7 +828,7 @@ local function run()
             os.sleep(0.2) -- Wait a bit before trying again if we hit cooldown
 
 
-            for key,value in pairs(getValuables()) do
+            for key, value in pairs(getValuables()) do
                 if analysis[key] and analysis[key] > 0 then
                     shouldScan = true
                     break
