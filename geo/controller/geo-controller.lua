@@ -229,7 +229,7 @@ local function run()
                         }
                         print("Chunk assigned to: " .. request.label)
                     end
-
+                    print(textutils.serialize(response))
                     modem.transmit(replyChannel, 1, textutils.serialize(response))
                     print("Sending chunk assignment to channel: " .. replyChannel)
 
