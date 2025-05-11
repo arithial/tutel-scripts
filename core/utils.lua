@@ -157,16 +157,17 @@ self = {
         return exists
     end,
 
-    getConfig = function(name, default)
+    getConfig = function(name, default, openEditOnCreate)
         if not name then
             error("Config name is required")
         end
+        local openEdit = openEditOnCreate or false
 
         -- Check if default is provided
         if default == nil then
             error("Default config is required")
         end
-        if not self.configExists(name) then
+        if not self.configExists(name) and openEdit then
             self.createConfig(default, name, true)
         end
         if self.configExists(name) then
