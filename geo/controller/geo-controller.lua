@@ -11,7 +11,7 @@ local DEFAULT_CONFIG = {
 
 }
 
-local CONFIG_FILENAME = "debris_controller_config"
+local CONFIG_FILENAME = "controller_config"
 local config = utils.getConfig(CONFIG_FILENAME, DEFAULT_CONFIG)
 
 local modem = peripheral.wrap(config.modemSide)
@@ -25,9 +25,16 @@ local ControllerState = {
     lastAssignedStep = 0, -- Tracks the spiral progression
     turtleStatus = {}, -- Format: {turtleLabel = {reboot=true/false, goto = {x,y,z}}
 }
+local addValuablesToTable = function(table,blockToAdd)
+    -- Check if target already exists
+    if table[blockToAdd] then
+        return
+    end
+    table.insert(table, { [blockToAdd]=true })
+end
 
 local CHUNK_SIZE = 16
-local STATE_FILENAME = "debris_controller"
+local STATE_FILENAME = "controller_state"
 
 -- Get chunk coordinates from block coordinates
 local function getChunkCoords(x, z)
@@ -114,7 +121,11 @@ local function handleTurtleRequest(turtleLabel, completedChunk)
             startChunkZ,
             ControllerState.lastAssignedStep
     )
-    nextChunk.valuableBlocks = config.valuableBlocks
+    nextChunk.valuableBlocks = {}
+    for blocks,_ in pairs(config.valuableBlocks) do
+        addValuablesToTable(nextChunk.valuableBlocks, blocks)
+    end
+
     -- Assign chunk to turtle
     ControllerState.activeChunks[turtleLabel] = nextChunk
 
@@ -157,12 +168,15 @@ local function printStatus()
         print("No active turtles")
     end
 end
-
+local function cleanup()
+    print("Cleaning up...")
+    -- Make sure to unequip any peripherals
+    -- Save state
+    saveState()
+end
 -- Main controller loop
 local function run()
     initController()
-
-
 
     modem.open(1) -- Channel 1 for requests
     print("Listening on channel 1 for requests")
@@ -232,6 +246,7 @@ end
 local function main()
     while true do
         local ok, err = pcall(run)
+        cleanup()
         if not ok then
             print("Controller crashed: " .. tostring(err))
             print("Restarting in 5 seconds...")
