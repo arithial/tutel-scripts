@@ -1,4 +1,4 @@
-local commons =
+commons =
 {
     controllerChannel = 1,
     requestTypes = {
