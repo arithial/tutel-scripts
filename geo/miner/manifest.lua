@@ -14,20 +14,20 @@ return {
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/core/movement.lua"
             },
             {
-                path = "geo.lua", -- Direct placement as startup.lua
+                path = "geo.lua",
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/miner/geo.lua"
             },
             {
-                path = "startup.lua", -- Direct placement as startup.lua
-                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/miner/startup.lua"
+                path = "startup.lua",
+                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/installer/startup.lua"
             },
             {
-                path = "manifest.lua", -- Direct placement as startup.lua
+                path = "manifest.lua",
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/miner/manifest.lua"
             },
             {
-                path = "install.lua", -- Direct placement as startup.lua
-                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/installer/install.lua"
+                path = "installer.lua",
+                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/installer/installer.lua"
             }
 
         },

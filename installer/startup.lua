@@ -1,0 +1,1 @@
+shell.run("installer","-f","-e")

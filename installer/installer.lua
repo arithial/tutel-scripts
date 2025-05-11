@@ -95,7 +95,7 @@ local function performInstall(manifest, selectedOptionals, onStatus)
         shell.run("wget", file.url, file.path)
         completed = completed + 1
         if onStatus then
-            local progress = completed / totalFiles
+            local progress = completed / totalFiles or 0
             onStatus("Downloaded: " .. file.path, progress)
         end
     end
@@ -119,7 +119,7 @@ local function performInstall(manifest, selectedOptionals, onStatus)
             shell.run("wget", file.url, file.path)
             completed = completed + 1
             if onStatus then
-                local progress = completed / totalFiles
+                local progress = completed / totalFiles or 0
                 onStatus("Downloaded: " .. file.path, progress)
             end
         end
@@ -146,7 +146,9 @@ local function performInstall(manifest, selectedOptionals, onStatus)
                 fs.move(script.source, script.destination)
             end
             completed = completed + 1
-            onStatus("Set up: " .. script.destination, completed / totalFiles)
+            local progress = completed / totalFiles or 0
+
+            onStatus("Set up: " .. script.destination, progress)
 
         end
     end
@@ -174,11 +176,11 @@ local function createInstallerGUI(manifest)
 
     -- Progress bar in Basalt2
     local progressBar = main:addProgressBar()
-                         :setPosition(2, 4)
-                         :setSize(30, 1)
-                         :setBackground(colors.gray)
-                         :setProgressColor(colors.lime)
-                         :setProgress(0)
+                            :setPosition(2, 4)
+                            :setSize(30, 1)
+                            :setBackground(colors.gray)
+                            :setProgressColor(colors.lime)
+                            :setProgress(0)
 
     local status = main:addLabel()
                        :setPosition(2, 6)
@@ -205,9 +207,12 @@ local function createInstallerGUI(manifest)
         installing = true
         performInstall(manifest, optList:getSelectedItem(), function(msg, progress)
             status:setText(msg)
-            if progress then
-                progressBar:setProgress(progress * 100)
+            local pr = progress or 0
+            if not progress then
+                print("Warning: NO PROGRESS")
             end
+            progressBar:setProgress(pr * 100)
+
         end)
         installing = false
         basalt.stop()
@@ -222,7 +227,11 @@ local manifest = getManifest(manifestUrl)
 if forceInstall then
     -- When using -f, install all required files and skip optional ones
     performInstall(manifest, nil, function(msg, progress)
-        print(msg .. string.format(" Progress: %.1f%%", progress * 100))
+        local pr = progress or 0
+        if not progress then
+            print("Warning: NO PROGRESS")
+        end
+        print(msg .. string.format(" Progress: %.1f%%", pr * 100))
     end)
 else
     createInstallerGUI(manifest)
