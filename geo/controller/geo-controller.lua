@@ -1,16 +1,20 @@
 -- Controller for managing Ancient Debris mining operation
 local utils = require("./core/utils")
+local commons = require("./geo-commons.lua")
 
 -- Configuration
 local DEFAULT_CONFIG = {
     modemSide = "left", -- Default modem side
     yMin = 8,
     yMax = 30,
-    valuableBlocks = { ["minecraft:ancient_debris"] = true },
-    controllerChannel = 1
-
+    valuableBlocks = { ["minecraft:ancient_debris"] = true }
 }
 
+local DEFAULT_REGISTRY = {
+    turtles = {} -- Format: { turtleLabel = { assignedChunk = {sw={x,y,z}, ne={x,y,z}}, reboot = false, message, status, fuelLevel, lastKnownLocation = {x, y, z}, moveTo = {x, y, z},transitionLayer}}
+}
+local TURTLE_REGISTRY_FILENAME = "turtle-registry"
+local turtleRegistry = utils.getConfig(TURTLE_REGISTRY_FILENAME, DEFAULT_REGISTRY)
 local CONFIG_FILENAME = "controller_config"
 local config = utils.getConfig(CONFIG_FILENAME, DEFAULT_CONFIG)
 
@@ -21,16 +25,14 @@ end
 -- State structure for the controller
 local ControllerState = {
     startChunk = nil, -- Will store the SW and NE corners of starting chunk
-    activeChunks = {}, -- Format: {turtleLabel = {sw={x,y,z}, ne={x,y,z}}}
     lastAssignedStep = 0, -- Tracks the spiral progression
-    turtleStatus = {}, -- Format: {turtleLabel = {reboot=true/false, goto = {x,y,z}}
 }
-local addValuablesToTable = function(valuables,blockToAdd)
+local addValuablesToTable = function(valuables, blockToAdd)
     -- Check if target already exists
     if valuables[blockToAdd] then
         return
     end
-    table.insert(valuables, { [blockToAdd]=true })
+    valuables[blockToAdd] = true
 end
 
 local CHUNK_SIZE = 16
@@ -50,6 +52,16 @@ local function getChunkCorners(chunkX, chunkZ)
         ne = { x = swX + CHUNK_SIZE - 1, y = config.yMax, z = swZ + CHUNK_SIZE - 1 }
     }
 end
+
+local function createEmptyTurtleRegistryEntry()
+    return {
+        assignedChunk = {}, -- Format: {turtleLabel = {sw={x,y,z}, ne={x,y,z}}}
+        reboot = false,
+        moveTo = {}, -- Format: {x,y,z}
+        status = nil --- String
+    }
+end
+
 
 -- Calculate next chunk in spiral pattern
 local function getNextChunkInSpiral(startChunkX, startChunkZ, stepCount)
@@ -81,6 +93,7 @@ end
 -- Save controller state
 local function saveState()
     utils.saveConfig(ControllerState, STATE_FILENAME)
+    utils.saveConfig(turtleRegistry, TURTLE_REGISTRY_FILENAME)
 end
 
 -- Initialize controller
@@ -107,7 +120,7 @@ end
 local function handleTurtleRequest(turtleLabel, completedChunk)
     -- Remove completed chunk from active chunks if provided
     if completedChunk then
-        ControllerState.activeChunks[turtleLabel] = nil
+        turtleRegistry.turtles[turtleLabel].assignedChunk = nil
     end
 
     -- Calculate next chunk
@@ -122,12 +135,12 @@ local function handleTurtleRequest(turtleLabel, completedChunk)
             ControllerState.lastAssignedStep
     )
     nextChunk.valuableBlocks = {}
-    for blocks,_ in pairs(config.valuableBlocks) do
+    for blocks, _ in pairs(config.valuableBlocks) do
         addValuablesToTable(nextChunk.valuableBlocks, blocks)
     end
 
     -- Assign chunk to turtle
-    ControllerState.activeChunks[turtleLabel] = nextChunk
+    turtleRegistry.turtles[turtleLabel].assignedChunk = nextChunk
 
     -- Save state
     saveState()
@@ -152,24 +165,32 @@ local function printStatus()
     print("\nActive Turtles:")
 
     local count = 0
-    for label, chunk in pairs(ControllerState.activeChunks) do
+    for label, turtleData in pairs(turtleRegistry.turtles) do
         count = count + 1
         print(string.format("%s: SW(%d,%d,%d) NE(%d,%d,%d)",
                 label,
-                chunk.sw.x,
-                chunk.sw.y or config.yMin,
-                chunk.sw.z,
-                chunk.ne.x,
-                chunk.ne.y or config.yMax,
-                chunk.ne.z))
+                turtleData.assignedChunk.sw.x,
+                turtleData.assignedChunk.sw.y or config.yMin,
+                turtleData.assignedChunk.sw.z,
+                turtleData.assignedChunk.ne.x,
+                turtleData.assignedChunk.ne.y or config.yMax,
+                turtleData.assignedChunk .ne.z))
+        print(string.format("Y transition layer: %d",turtleDatatransitionLayer))
+        print(string.format("Last Known Location: %d,%d,%d; status: %s",
+                turtleData.lastKnownLocation.x,
+                turtleData.lastKnownLocation.y,
+                turtleData.lastKnownLocation.z,
+                turtleData.status))
     end
 
     if count == 0 then
         print("No active turtles")
     end
 end
+
 local function cleanup()
     print("Cleaning up...")
+    modem.closeAll()
     -- Make sure to unequip any peripherals
     -- Save state
     saveState()
@@ -178,7 +199,7 @@ end
 local function run()
     initController()
 
-    modem.open(1) -- Channel 1 for requests
+    modem.open(commons.ControllerChannel) -- Channel 1 for requests
     print("Listening on channel 1 for requests")
 
     while true do
@@ -186,60 +207,80 @@ local function run()
 
         print(string.format("Received message on channel %d, reply to %d", channel, replyChannel))
 
-        if channel == config.controllerChannel then
+        if channel == commons.ControllerChannel then
             local request = textutils.unserialize(message)
-            if request then
-                if request.type == "status" then
-                    print("Status request received")
-                    modem.transmit(replyChannel, 1, textutils.serialize({
-                        type = "status",
-                        state = ControllerState
+            if request and request.label then
+                if not turtleRegistry.turtles[request.label] then
+                    turtleRegistry.turtles[request.label] = createEmptyTurtleRegistryEntry()
+                end
+                saveState()
+                if turtleRegistry.turtles[request.label].reboot then
+                    print(request.label .. " has been marked for rebooting. Sending proper response")
+                    modem.transmit(replyChannel, commons.ControllerChannel, textutils.serialize({
+                        label = request.label,
+                        type = commons.requestTypes.reboot
                     }))
-                elseif request.type == "statusUpdate" then
-                    if request.rebootTurtle then
-                        if not ControllerState.turtleStatus[request.rebootTurtle] then
-                            ControllerState.turtleStatus[request.rebootTurtle] = {}
-                        end
-                        ControllerState.turtleStatus[request.rebootTurtle].reboot = true
-                        saveState() -- Save state after updating
+                    turtleRegistry.turtles[request.label].reboot = false
+                    saveState() -- Save state after updating
+                elseif request.type == commons.requestTypes.statusRequest then
+                    print("Status request received")
+                    modem.transmit(replyChannel, commons.ControllerChannel, textutils.serialize({
+                        type = commons.requestTypes.statusRequest,
+                        state = ControllerState,
+                        registry = turtleRegistry
+                    }))
+                elseif request.type == commons.requestTypes.statusUpdate then
+                    turtleRegistry.turtles[request.label].lastKnownLocation = request.location
+                    turtleRegistry.turtles[request.label].message = request.message
+                    turtleRegistry.turtles[request.label].fuelLevel = request.fuelLevel
+                    turtleRegistry.turtles[request.label].status = request.currentAction
+                    if request.reboot then
+                        turtleRegistry.turtles[request.label].reboot = true
+
+                    end
+                    saveState() -- Save state after updating
+                    printStatus()
+                elseif request.type == commons.requestTypes.transitionRequest then
+                    if not config.lastTransitionLayerUsed then
+                        config.lastTransitionLayerUsed = config.yMin - 1
                     end
 
-                elseif request.label then
-                    print("Mining request from: " .. request.label)
-                    local response
-                    if ControllerState.turtleStatus[request.label] and
-                            ControllerState.turtleStatus[request.label].reboot then
-                        print(request.label .. " has been marked for rebooting. Sending proper response")
-                        response = {
-                            label = request.label,
-                            type = "reboot"
-                        }
-                        ControllerState.turtleStatus[request.label].reboot = false
-                        ControllerState.turtleStatus[request.label] = nil
-                        saveState() -- Save state after updating
-                    else
-                        local nextChunk = handleTurtleRequest(
-                                request.label,
-                                request.completedChunk
-                        )
-                        response = {
-                            label = request.label,
-                            type = "chunk_assignment",
-                            chunk = nextChunk
-                        }
-                        print("Chunk assigned to: " .. request.label)
+                    local newTransitionLayer = config.lastTransitionLayerUsed + 1
+                    if turtleRegistry.turtles[request.label].transitionLayer then
+                        newTransitionLayer = turtleRegistry.turtles[request.label].transitionLayer
+
+                    elseif newTransitionLayer > config.yMax then
+                        newTransitionLayer = config.yMin
                     end
+                    modem.transmit(replyChannel, commons.ControllerChannel, textutils.serialize({
+                        type = commons.requestTypes.transitionRequest,
+                        label = request.label,
+                        transitionLayer = newTransitionLayer,
+                    }))
+                    config.lastTransitionLayerUsed = newTransitionLayer
+                    turtleRegistry.turtles[request.label].transitionLayer = newTransitionLayer
+                    saveState()
+                elseif request.type == commons.requestTypes.newChunkRequest then
+
+                    local nextChunk = handleTurtleRequest(
+                            request.label,
+                            request.completedChunk
+                    )
+                    local response = {
+                        label = request.label,
+                        type = commons.requestTypes.chunkAssignment,
+                        chunk = nextChunk
+                    }
+                    print("Chunk assigned to: " .. request.label)
+
                     print(textutils.serialize(response))
-                    modem.transmit(replyChannel, 1, textutils.serialize(response))
+                    modem.transmit(replyChannel, commons.ControllerChannel, textutils.serialize(response))
                     print("Sending chunk assignment to channel: " .. replyChannel)
-
-                    -- Update display immediately
                     printStatus()
                 end
             end
         end
     end
-    modem.closeAll()
 end
 
 -- Error handling wrapper

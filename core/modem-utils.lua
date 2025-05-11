@@ -34,6 +34,9 @@ modemUtils = {
                 end
             end)
             modem.close(modemUtils.communicationsChannel)
+            if postResponseHandler then
+                postResponseHandler()
+            end
             return ok, err
         end
     end

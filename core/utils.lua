@@ -116,7 +116,7 @@ self = {
             return default
         end
 
-        -- Create new table to store cleaned config
+        -- Create new table to store cleaned config 
         local cleaned = {}
 
         -- Add all entries from default, using loaded values when they exist
@@ -126,6 +126,13 @@ self = {
                 cleaned[k] = self.cleanLoadedConfig(loaded[k], v)
             else
                 cleaned[k] = loaded[k] ~= nil and loaded[k] or v
+            end
+        end
+
+        -- Include any extra values from loaded that aren't in default
+        for k, v in pairs(loaded) do
+            if default[k] == nil then
+                cleaned[k] = v
             end
         end
 

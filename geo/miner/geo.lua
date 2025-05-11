@@ -13,6 +13,7 @@ local function log(message, level)
     print("[" .. level .. "] " .. message)
 end
 local args = { ... }
+local commons = require("./geo-commons.lua")
 
 -- Configuration
 local DEFAULT_CONFIG = {
@@ -43,21 +44,16 @@ for _, arg in ipairs(args) do
         analyzeChunk = true
     end
 end
---movement.utils.init({
---    pickaxeSlot = config.pickaxeSlot,
---    enderModemSlot = config.enderModemSlot,
---    lowFuelThreshold = config.lowFuelThreshold,
---    equipPeripheral = equipPeripheral,
---    getPosition = getPosition
---})
 
 -- State management
 local State = {
     currentChunk = nil, -- Format: {sw = {x,y,z}, ne = {x,y,z}, valuableBlocks = {[blockName] = true}}
     scannedCoords = {}, -- Set of "y,x,z" strings for positions already scanned
-    foundTargets = {} -- List of {x,y,z} for debris found but not mined
+    foundTargets = {}, -- List of {x,y,z} for debris found but not mined
 
 }
+
+local currentAction = "initialising"
 -- Return valuable blocks from chunk state or default to ancient debris
 local function getValuables()
     if State.currentChunk and State.currentChunk.valuableBlocks then
@@ -77,7 +73,6 @@ local addTarget = function(targetToAdd, x, y, z)
 end
 
 local STATE_FILENAME = "miner_state"
-
 -- Track equipped peripheral globally
 local currentEquipped = nil
 
@@ -87,6 +82,12 @@ local function unequipPeripheral()
         local oldSlot = turtle.getSelectedSlot() -- Remember current slot
         utils.clearSlot(currentEquipped, turtle)
         turtle.select(currentEquipped)
+        if (config.enderModemSlot == currentEquipped) then
+            local modem = peripheral.wrap(config.peripheralSide)
+            if modem then
+                modem.closeAll()
+            end
+        end
         if turtle.equipRight() then
             print("Unequipped peripheral from slot " .. currentEquipped)
             currentEquipped = nil
@@ -132,31 +133,73 @@ local function doRefuel()
     utils.ender_refuel(config.fuelChestSlot)
     turtle.select(5)
 end
-
+local function handleSystemResponses(response)
+    if response and response.label == os.getComputerLabel() and response.type == commons.requestTypes.reboot then
+        os.reboot()
+    end
+end
 -- GPS and position utilities
 local function getPosition(forcePickaxe)
-    local equipPickaxeAtEnd = forcePickaxe or true
     equipPeripheral(config.enderModemSlot) -- Ensure modem is equipped
     local maxAttempts = 5
-    local x, y, z
+    local xAxis, yAxis, zAxis
 
     for attempt = 1, maxAttempts do
         print("Attempting GPS locate... (Attempt " .. attempt .. ")")
-        x, y, z = gps.locate(2) -- Wait up to 2 seconds for GPS
-        if x then
+        xAxis, yAxis, zAxis = gps.locate(2) -- Wait up to 2 seconds for GPS
+        if xAxis then
             break
         end
         os.sleep(1)
     end
 
-    if not x then
+    if not xAxis then
         error("Failed to locate position using GPS after " .. maxAttempts .. " attempts. Check GPS system.")
     end
-    if equipPickaxeAtEnd then
+    if forcePickaxe then
         equipPeripheral(config.pickaxeSlot) -- Return to pickaxe after finding position
 
     end
-    return x, y, z
+    return xAxis, yAxis, zAxis
+end
+
+local function sendStatusMessage(statusMessage)
+    if statusMessage then
+        equipPeripheral(config.enderModemSlot) -- Ensure modem is equipped
+        local modem = peripheral.wrap(config.peripheralSide)
+        if not modem then
+            error("Failed to wrap modem")
+        end
+        modem.open(config.replyChannel)
+        local xAxis,yAxis,zAxis = getPosition(false)
+        local request = {
+            type = commons.requestTypes.statusUpdate,
+            label = os.getComputerLabel(),
+            location = { x = xAxis, y = yAxis, z = zAxis },
+            message = statusMessage,
+            fuelLevel = turtle.getFuelLevel(),
+            currentAction = currentAction
+        }
+        modem.transmit(commons.controllerChannel, config.replyChannel,
+                textutils.serialize(request))
+        local timer = os.startTimer(1)
+        while true do
+            local event, p1, p2, p3, p4, p5 = os.pullEvent()
+
+            if event == "timer" and p1 == timer then
+                print("Controller did not reply... Status updates, shouldn't expect replies. Done to allow quicker rebooting.")
+                modem.close(config.replyChannel)
+                print("Closing reply channel")
+                break
+            elseif event == "modem_message" then
+                if p2 == config.replyChannel then
+                    local response = textutils.unserialize(p4)
+                    handleSystemResponses(response)
+                end
+            end
+        end
+        modem.close(config.replyChannel)
+    end
 end
 
 local function depositValuables()
@@ -296,7 +339,7 @@ local function moveToY(targetY)
     :: retryY ::
     turtle.select(5)
 
-    local x, y, z = getPosition()
+    local x, y, z = getPosition(false)
     print("moveToY: Current Y:" .. tostring(y) .. " Target Y:" .. tostring(targetY))
 
     if not y then
@@ -375,7 +418,7 @@ local function moveToXZ(targetX, targetZ)
             end
             actualDirection = determineMovementDirection()
             if actualDirection == nil then
-                -- Reached destination  
+                -- Reached destination
                 return true
             end
         until actualDirection == targetDirection
@@ -409,7 +452,7 @@ local function moveToXZ(targetX, targetZ)
         end
     end
     -- Handle Z movement if needed
-    x, _, z = getPosition()
+    x, _, z = getPosition(true)
     handleTurtleUtilities()
     if z ~= targetZ then
         local targetDirection = z < targetZ and 0 or 2  -- 0 for +Z, 2 for -Z
@@ -430,7 +473,7 @@ local function moveToXZ(targetX, targetZ)
         end
 
         -- Verify final position
-        local finalX, _, finalZ = getPosition()
+        local finalX, _, finalZ = getPosition(true)
         if finalZ ~= targetZ then
             error(string.format("Z-axis movement failed! Expected Z=%d but got Z=%d",
                     targetZ, finalZ))
@@ -438,7 +481,7 @@ local function moveToXZ(targetX, targetZ)
     end
 
     -- Final position verification
-    local finalX, _, finalZ = getPosition()
+    local finalX, _, finalZ = getPosition(true)
     if finalX ~= targetX or finalZ ~= targetZ then
         error(string.format("Final position mismatch! Expected: X=%d,Z=%d but got: X=%d,Z=%d",
                 targetX, targetZ, finalX, finalZ))
@@ -458,6 +501,11 @@ local function moveToStartingYLevel()
         local neY = State.currentChunk.ne and State.currentChunk.ne.y or 22
         targetY = math.min(swY, neY)
     end
+    moveToY(targetY)
+end
+
+local function moveToTransitionLayer()
+    local targetY = config.transitionLayer or 8 -- default fallback
     moveToY(targetY)
 end
 
@@ -499,11 +547,12 @@ local function moveToChunk()
     if not State.currentChunk then
         error("Invalid state: No current chunk.")
     end
+    sendStatusMessage("Moving to assigned chunk")
 
     local centerX, centerZ = getChunkCenter()
     print("Moving to chunk center: (" .. centerX .. "," .. centerZ .. ")")
 
-    moveToStartingYLevel()
+    moveToTransitionLayer()
 
     -- First move to Y=8 (starting height for ancient debris)
     -- Then move to the chunk center
@@ -514,7 +563,7 @@ end
 
 -- Replace moveToNextScanPosition with new Y-level based scanning
 local function moveToNextScanPosition()
-    local x, y, z = getPosition()
+    local x, y, z = getPosition(true)
     if not x then
         print("Failed to get position in moveToNextScanPosition")
         return false
@@ -559,7 +608,7 @@ local function scanArea()
     print("=== Starting Area Scan ===")
 
     -- First get our position while we have the pickaxe equipped
-    local currentX, currentY, currentZ = getPosition()
+    local currentX, currentY, currentZ = getPosition(true)
     if not currentX then
         print("ERROR: Failed to get position during scan")
         error("Could not get position")
@@ -648,6 +697,7 @@ local function requestNewChunk()
     print("=== Starting New Chunk Request ===")
     print("Equipping modem from slot " .. config.enderModemSlot)
     equipPeripheral(config.enderModemSlot)
+    sendStatusMessage("Requesting Chunk")
     local modem = peripheral.wrap(config.peripheralSide)
     if not modem then
         print("ERROR: No modem found on " .. config.peripheralSide .. " side")
@@ -661,14 +711,15 @@ local function requestNewChunk()
     -- Request format matches controller expectations
     local request = {
         label = os.getComputerLabel(),
+        type = commons.requestTypes.newChunkRequest,
         completedChunk = State.currentChunk -- nil for first request
     }
 
     print("Current computer label: " .. tostring(os.getComputerLabel()))
     print("Completed chunk: " .. (State.currentChunk and textutils.serialize(State.currentChunk) or "nil"))
 
-    print("Sending request to controller on channel: " .. config.controllerChannel)
-    modem.transmit(config.controllerChannel, config.replyChannel,
+    print("Sending request to controller on channel: " .. commons.controllerChannel)
+    modem.transmit(commons.controllerChannel, config.replyChannel,
             textutils.serialize(request))
 
     -- Wait for response
@@ -688,7 +739,8 @@ local function requestNewChunk()
             if p2 == config.replyChannel then
                 local response = textutils.unserialize(p4)
                 if response and response.label == os.getComputerLabel() then
-                    if response.type == "chunk_assignment" then
+                    handleSystemResponses(response)
+                    if response.type == commons.requestTypes.chunkAssignment then
                         print("Received valid chunk assignment")
                         print("New chunk: " .. textutils.serialize(response.chunk))
 
@@ -706,8 +758,7 @@ local function requestNewChunk()
 
                         print("=== Chunk Request Complete ===")
                         return true
-                    elseif response and response.type == "reboot" then
-                        os.reboot()
+
                     else
                         print("Received invalid or unexpected response type")
                     end
@@ -720,6 +771,7 @@ local function requestNewChunk()
             print("Received event: " .. event)
         end
     end
+    modem.close(config.replyChannel)
 end
 
 local function checkAndUnequipExistingPeripherals()
@@ -750,7 +802,65 @@ local function hasEnderChest(slot)
 end
 local terminate = false
 
--- Error handling wrapper  
+local function requestTransitionLayer()
+    if config.transitionLayer then
+        return -- we already have an assigned transition layer.
+    end
+    print("Requesting transition layer")
+    equipPeripheral(config.peripheralSide)
+    local modem = peripheral.wrap(config.peripheralSide)
+    if not modem then
+        print("ERROR: No modem found on " .. config.peripheralSide .. " side")
+        error("No modem found")
+    end
+    modem.open(config.replyChannel)
+
+    -- Request format matches controller expectations
+    local request = {
+        label = os.getComputerLabel(),
+        type = commons.requestTypes.transitionRequest
+    }
+
+    print("Current computer label: " .. tostring(os.getComputerLabel()))
+
+    print("Sending request to controller on channel: " .. commons.controllerChannel)
+    modem.transmit(commons.controllerChannel, config.replyChannel,
+            textutils.serialize(request))
+
+    -- Wait for response
+    print("Waiting for controller response...")
+    local timer = os.startTimer(5)
+    while true do
+        local event, p1, p2, p3, p4, p5 = os.pullEvent()
+
+        if event == "timer" and p1 == timer then
+            print("ERROR: Controller response timeout")
+            modem.close(config.replyChannel)
+            print("Closing reply channel")
+            equipPeripheral(config.pickaxeSlot)
+            error("Timeout waiting for controller response")
+        elseif event == "modem_message" then
+            print("Received modem message on channel: " .. p2)
+            if p2 == config.replyChannel then
+                local response = textutils.unserialize(p4)
+                if response and response.label == os.getComputerLabel() then
+                    handleSystemResponses(response)
+                    if  response.type == commons.requestTypes.transitionRequest then
+                        config.transitionLayer = response.transitionLayer
+                        break
+                    else
+                        error("Incorrect response type received. Expected: "..commons.requestTypes.transitionRequest.." Got: "..response.type)
+                    end
+                end
+
+            end
+
+        end
+
+    end
+end
+
+-- Error handling wrapper
 local function initialize()
     print("Initializing turtle...")
     movement.canBaseRefuel = false
@@ -775,6 +885,7 @@ local function initialize()
     if not hasEnderChest(config.depositChestSlot) then
         return false, "Missing ender deposit chest in slot " .. config.depositChestSlot
     end
+    requestTransitionLayer()
     return true
 end
 -- And in the main mining loop, add periodic cleanup:
@@ -789,6 +900,7 @@ local function run()
     end
 
     while true do
+        currentAction = "initialising"
         equipPeripheral(config.pickaxeSlot)
         print("=== Main Loop Start ===")
         handleTurtleUtilities()  -- Replace the existing check
@@ -796,6 +908,7 @@ local function run()
         -- Get new chunk if needed
         if not State.currentChunk then
             print("Requesting new chunk...")
+            currentAction = "chunkRequest"
             requestNewChunk()
             print("Assigned chunk: ", textutils.serialize(State.currentChunk))
 
@@ -803,6 +916,7 @@ local function run()
 
             -- Move to new chunk at first Y level
             print("Moving to assigned chunk...")
+            currentAction = "moveToChunk"
             if not moveToChunk() then
                 error("Failed to move to assigned chunk")
             end
@@ -811,12 +925,16 @@ local function run()
         -- Move to center and current Y level
         local centerX, centerZ = getChunkCenter()
         print("Moving to centre: " .. centerX .. " " .. centerZ)
+        sendStatusMessage("Moving to chunk centre at " .. centerX .. " " .. centerZ)
+
         if centerX then
             moveToXZ(centerX, centerZ)
         end
         local shouldScan = false
         if analyzeChunk then
-            print("Scanning: ")
+            currentAction = "analyzing"
+            sendStatusMessage("Using Chunk analyzer")
+
             equipPeripheral(config.geoScannerSlot)
             local scanner = peripheral.wrap(config.peripheralSide)
             if not scanner then
@@ -839,6 +957,9 @@ local function run()
         end
         -- Only process if we found any ancient debris
         if shouldScan then
+            currentAction = "scanning"
+
+            print("Scanning: ")
             moveToStartingYLevel()
             while moveToNextScanPosition() do
                 -- Scan for new targets
@@ -848,6 +969,8 @@ local function run()
                     addTarget(State.foundTargets, target.x, target.y, target.z)
                 end
             end
+            sendStatusMessage("Chunk scanned")
+
         else
             print("No debris in chunk. Skipping...")
         end
@@ -857,10 +980,12 @@ local function run()
 
         -- Mine any known targets first
         print("Known targets to mine: " .. #State.foundTargets)
+        currentAction = "mining"
         while #State.foundTargets > 0 do
             print("Mining target " .. #State.foundTargets .. " remaining")
 
             local target = table.remove(State.foundTargets, 1)
+            sendStatusMessage("Minig target: x=" .. target.x .. ", y=" .. target.y .. ", z=" .. target.z)
             print("Moving to target at: x=" .. target.x .. ", y=" .. target.y .. ", z=" .. target.z)
             equipPeripheral(config.pickaxeSlot)
             if moveToTarget(target) then
@@ -869,6 +994,8 @@ local function run()
 
             handleTurtleUtilities()  -- Replace the existing check
         end
+        currentAction = "chunkFinished"
+        sendStatusMessage("Chunk  complete.")
         State.currentChunk = nil
 
         -- Save state after each major operation

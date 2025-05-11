@@ -24,6 +24,11 @@ return {
             {
                 path = "installer.lua",
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/installer/installer.lua"
+            },
+            {
+                path = "geo-commons.lua",
+                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/geo-commons.lua"
+
             }
 
         },
