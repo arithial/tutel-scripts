@@ -29,6 +29,7 @@ local DEFAULT_CONFIG = {
     -- Scanner specific settings
     scanRadius = 8, -- Optimal radius for no fuel cost
     scanInterval = 7, -- How far to move between scans (slightly less than radius*2 for overlap)
+    resetWaitTime = 5
 }
 
 local CONFIG_FILENAME = "debris_miner_config"
@@ -889,8 +890,8 @@ local function main()
                         if terminate then
                             break
                         end
-                        print("Restarting in 50 seconds...")
-                        os.sleep(50)
+                        print("Restarting in " .. config.resetWaitTime .. " seconds...")
+                        os.sleep(config.resetWaitTime)
                     end
                     cleanup()
                 end
