@@ -143,6 +143,9 @@ self = {
         local file = fs.open(name .. ".config", "r")
         local data = file.readAll()
         file.close()
+        if not data or ""==data then
+            return default
+        end
         local loaded = textutils.unserialize(data)
         if default then
             return self.cleanLoadedConfig(loaded, default)
