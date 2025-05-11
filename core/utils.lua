@@ -116,10 +116,13 @@ self = {
     end,
 
     cleanLoadedConfig = function(loaded, default)
-        if type(loaded) ~= "table" or type(default) ~= "table" then
-            error("Both loaded and default must be tables")
+        if type(default) ~= "table" then
+            error(" Default must be tables")
         end
 
+        if type(loaded) ~= "table" then
+            return default
+        end
         -- Create new table to store cleaned config
         local cleaned = {}
 

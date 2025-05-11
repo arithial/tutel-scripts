@@ -77,7 +77,7 @@ end
 -- Initialize controller
 local function initController()
     -- Load existing state or create new
-    local saved = utils.getConfig(STATE_FILENAME, ControllerState)
+    local saved = utils.getConfig(STATE_FILENAME, ControllerState, false)
     ControllerState = saved
 
     -- Get current position for start chunk if not set
