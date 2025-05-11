@@ -1,4 +1,5 @@
 local movement = require("./core/movement")
+local commons = require("./geo-commons")
 local utils = movement.utils
 if not utils then
     error("Nil utils")
@@ -13,7 +14,6 @@ local function log(message, level)
     print("[" .. level .. "] " .. message)
 end
 local args = { ... }
-local commons = require("geo-commons.lua")
 
 -- Configuration
 local DEFAULT_CONFIG = {
