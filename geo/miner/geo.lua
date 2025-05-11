@@ -13,7 +13,7 @@ local function log(message, level)
     print("[" .. level .. "] " .. message)
 end
 local args = { ... }
-local commons = require("./geo-commons.lua")
+local commons = require("geo-commons.lua")
 
 -- Configuration
 local DEFAULT_CONFIG = {

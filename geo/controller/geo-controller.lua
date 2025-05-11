@@ -1,6 +1,6 @@
 -- Controller for managing Ancient Debris mining operation
 local utils = require("./core/utils")
-local commons = require("./geo-commons.lua")
+local commons = require("geo-commons.lua")
 
 -- Configuration
 local DEFAULT_CONFIG = {
