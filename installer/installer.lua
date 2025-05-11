@@ -12,7 +12,7 @@ local forceInstall = hasArg("-f")
 local executeAfter = hasArg("-e")
 local manifestUrl = nil
 for _, arg in ipairs(args) do
-    if string.match(string.lower(arg), "^(https?://)?[%w-%.]+%.[%w-]+/[%w-%./%?=%%&]+") then
+    if string.match(string.lower(arg), "https?://(([%w_.~!*:@&+$/?%%#-]-)(%w[-.%w]*%.)(%w+)(:?)(%d*)(/?)([%w_.~!*:@&+$/?%%#=-]*))") then
         manifestUrl = arg
         break
     end
@@ -28,6 +28,7 @@ end
 
 local function getManifest(manifestUrl)
     -- Try remote manifest first if URL provided
+    print(manifestUrl)
     if manifestUrl then
         print("Attempting to download manifest...")
         local response = http.get(manifestUrl)

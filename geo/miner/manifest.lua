@@ -19,7 +19,7 @@ return {
             },
             {
                 path = "startup.lua",
-                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/installer/startup.lua"
+                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/miner/startup.lua"
             },
             {
                 path = "installer.lua",

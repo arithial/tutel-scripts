@@ -12,6 +12,10 @@ local DEFAULT_CONFIG = {
 local CONFIG_FILENAME = "debris_controller_config"
 local config = utils.getConfig(CONFIG_FILENAME, DEFAULT_CONFIG)
 
+local modem = peripheral.wrap(config.modemSide)
+if not modem then
+    error(string.format("No modem found on %s side", config.modemSide))
+end
 -- State structure for the controller
 local ControllerState = {
     startChunk = nil, -- Will store the SW and NE corners of starting chunk
@@ -156,10 +160,7 @@ end
 local function run()
     initController()
 
-    local modem = peripheral.wrap(config.modemSide)
-    if not modem then
-        error(string.format("No modem found on %s side", config.modemSide))
-    end
+
 
     modem.open(1) -- Channel 1 for requests
     print("Listening on channel 1 for requests")
@@ -220,6 +221,7 @@ local function run()
             end
         end
     end
+    modem.closeAll()
 end
 
 -- Error handling wrapper
