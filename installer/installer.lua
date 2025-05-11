@@ -7,9 +7,31 @@ local function hasArg(flag)
     end
     return false
 end
+if hasArg("-h") then
+    print([[
+Installer Script Help
+Usage: installer [URL] [options]
+
+URL:    Optional URL to manifest.lua file. If not provided, will look for local manifest.lua
+
+Options:
+-f    Force install mode - skips GUI and optional components, installing immediately
+-e    Execute after install - runs the program after installation
+-p    Purge on exit - removes all files after execution (requires -e)
+-h    Show this help message
+
+The installer downloads and sets up programs according to a manifest file that
+defines required files, optional components, and startup configuration.
+]])
+    return
+end
 
 local forceInstall = hasArg("-f")
 local executeAfter = hasArg("-e")
+local purgeOnExit = hasArg("-p")
+if not executeAfter and purgeOnExit then
+    error("Cannot purge on exit, if execution is not triggered.")
+end
 local manifestUrl = nil
 for _, arg in ipairs(args) do
     if string.match(string.lower(arg), "https?://(([%w_.~!*:@&+$/?%%#-]-)(%w[-.%w]*%.)(%w+)(:?)(%d*)(/?)([%w_.~!*:@&+$/?%%#=-]*))") then
@@ -63,6 +85,44 @@ local function getManifest(manifestUrl)
     error("No valid manifest found. Please provide a manifest URL or ensure manifest.lua exists locally")
 end
 
+local function triggerExecution(execution)
+    return pcall(function()
+        return shell.run(execution)
+    end)
+
+end
+
+local function deleteFiles(files)
+    for _, file in ipairs(files) do
+        if onStatus then
+            onStatus("Removing: " .. file.path)
+        end
+        if fs.exists(file.path) then
+            fs.delete(file.path)
+        end
+
+    end
+end
+
+local function deleteInstalled(manifest, onStatus)
+    onStatus("Uninstalling " .. manifest.name, 0)
+    deleteFiles(manifest.files.required)
+    deleteFiles(manifest.files.optional)
+    deleteFiles(manifest.files.startup)
+
+end
+
+local function onPostInstall(manifest, onStatus)
+    if executeAfter and manifest.execute then
+        triggerExecution(manifest.execute)
+    elseif forceInstall then
+        os.reboot()
+    end
+    if purgeOnExit then
+        deleteInstalled(manifest, onStatus)
+    end
+end
+
 local function performInstall(manifest, selectedOptionals, onStatus)
     if onStatus then
         onStatus("Installing " .. manifest.name .. " v" .. manifest.version, 0)
@@ -78,40 +138,13 @@ local function performInstall(manifest, selectedOptionals, onStatus)
     end
 
     local completed = 0
-
+    deleteInstalled(manifest, onStatus)
     -- Install required files
     for _, file in ipairs(manifest.files.required) do
         if onStatus then
             onStatus("Downloading: " .. file.path)
         end
-        if fs.exists(file.path) then
-            fs.delete(file.path)
-        end
-
-        local dir = fs.getDir(file.path)
-        if dir and not fs.exists(dir) then
-            fs.makeDir(dir)
-        end
-
-        shell.run("wget", file.url, file.path)
-        completed = completed + 1
-        if onStatus then
-            local progress = completed / totalFiles or 0
-            onStatus("Downloaded: " .. file.path, progress)
-        end
-    end
-
-    -- Install selected optional files
-    if manifest.files.optional and selectedOptionals then
-        for _, index in pairs(selectedOptionals) do
-            local file = manifest.files.optional[index]
-            if onStatus then
-                onStatus("Downloading: " .. file.path)
-            end
-            if fs.exists(file.path) then
-                fs.delete(file.path)
-            end
-
+        if not fs.exists(file.path) then
             local dir = fs.getDir(file.path)
             if dir and not fs.exists(dir) then
                 fs.makeDir(dir)
@@ -123,46 +156,80 @@ local function performInstall(manifest, selectedOptionals, onStatus)
                 local progress = completed / totalFiles or 0
                 onStatus("Downloaded: " .. file.path, progress)
             end
+        else
+            completed = completed + 1
+            if onStatus then
+                local progress = completed / totalFiles or 0
+                onStatus("Skipping existing file: " .. file.path, progress)
+            end
         end
     end
 
+    -- Install selected optional files
+    if manifest.files.optional and selectedOptionals then
+        for _, index in pairs(selectedOptionals) do
+            local file = manifest.files.optional[index]
+            if onStatus then
+                onStatus("Downloading: " .. file.path)
+            end
+            if not fs.exists(file.path) then
+
+                local dir = fs.getDir(file.path)
+                if dir and not fs.exists(dir) then
+                    fs.makeDir(dir)
+                end
+
+                shell.run("wget", file.url, file.path)
+                completed = completed + 1
+                if onStatus then
+                    local progress = completed / totalFiles or 0
+                    onStatus("Downloaded: " .. file.path, progress)
+                end
+            else
+                completed = completed + 1
+                if onStatus then
+                    local progress = completed / totalFiles or 0
+                    onStatus("Skipping existing file: " .. file.path, progress)
+                end
+            end
+        end
+    end
     -- Handle startup scripts
     if manifest.startup then
         for _, script in ipairs(manifest.startup) do
             if onStatus then
                 onStatus("Setting up: " .. script.destination, completed / totalFiles)
             end
-            if fs.exists(script.destination) then
-                fs.delete(script.destination)
+            if not fs.exists(file.path) then
+                local dir = fs.getDir(script.destination)
+                if dir and not fs.exists(dir) then
+                    fs.makeDir(dir)
+                end
+
+                if script.type == "copy" then
+                    fs.copy(script.source, script.destination)
+                elseif script.type == "move" then
+                    fs.move(script.source, script.destination)
+                end
+                completed = completed + 1
+                local progress = completed / totalFiles or 0
+
+                onStatus("Set up: " .. script.destination, progress)
+            else
+                completed = completed + 1
+                if onStatus then
+                    local progress = completed / totalFiles or 0
+                    onStatus("Skipping existing file: " .. file.path, progress)
+                end
             end
-
-            local dir = fs.getDir(script.destination)
-            if dir and not fs.exists(dir) then
-                fs.makeDir(dir)
-            end
-
-            if script.type == "copy" then
-                fs.copy(script.source, script.destination)
-            elseif script.type == "move" then
-                fs.move(script.source, script.destination)
-            end
-            completed = completed + 1
-            local progress = completed / totalFiles or 0
-
-            onStatus("Set up: " .. script.destination, progress)
-
         end
+        
     end
-
     if onStatus then
         onStatus("Installation complete!", 1)
     end
 
-    if executeAfter and manifest.execute then
-        shell.run(manifest.execute)
-    elseif forceInstall then
-        os.reboot()
-    end
+    onPostInstall(manifest, onStatus)
 end
 
 local function createInstallerGUI(manifest)
@@ -217,6 +284,7 @@ local function createInstallerGUI(manifest)
         end)
         installing = false
         basalt.stop()
+        onPostInstall(manifest, onStatus)
     end
 
     installButton:onClick(install)

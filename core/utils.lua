@@ -30,10 +30,9 @@ local function canDigBlock(inspectFunc)
     return true
 end
 
-
 function persistentDig(digFunc, inspectFunc, conflictingTutels)
     local attempts = 1
-    
+
     if not digFunc then
         return false, "No dig function passed. Is a pickaxe equipped?"
     end
@@ -43,7 +42,7 @@ function persistentDig(digFunc, inspectFunc, conflictingTutels)
         -- Check what we're trying to dig
         if isFacingTutel(inspectFunc) then
             if attempts < 50 then
-                os.sleep(math.random(1,3)*0.5) -- Small delay between attempts
+                os.sleep(math.random(1, 3) * 0.5) -- Small delay between attempts
             else
                 if conflictingTutels then
                     conflictingTutels()
@@ -76,7 +75,6 @@ function persistentDig(digFunc, inspectFunc, conflictingTutels)
     return true
 end
 
-
 self = {
     enderFuelSlot = 1,
     fuelSuckCount = 64, -- Number of fuel items (e.g., coal) to suck at start.
@@ -101,11 +99,20 @@ self = {
         file.close()
     end,
 
-    createConfig = function(table, name)
+    createConfig = function(table, name, editOnCreate)
+        local openEdit = editOnCreate or false
         local file = fs.open(name .. ".config", "w+")
         file.write(textutils.serialize(table))
         file.flush()
         file.close()
+        if openEdit then
+            local success, reason = pcall(function()
+                shell.run("edit", name .. ".config")
+            end)
+            if not success then
+                print("Editing failed.")
+            end
+        end
     end,
 
     cleanLoadedConfig = function(loaded, default)
@@ -159,15 +166,16 @@ self = {
         if default == nil then
             error("Default config is required")
         end
-
+        if not self.configExists(name) then
+            self.createConfig(default, name, true)
+        end
         if self.configExists(name) then
             return self.loadConfig(name, default)
         else
-            self.createConfig(default, name)
+            self.createConfig(default, name, false)
             return default
         end
     end,
-    
 
 
     findItem = function(itemName)
@@ -246,7 +254,7 @@ self = {
 
         return totalCount
     end,
-    getInventorySize = function(inventory) 
+    getInventorySize = function(inventory)
         local slots = 16
         if inventory.size then
             slots = inventory.size()
