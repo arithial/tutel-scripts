@@ -25,12 +25,12 @@ local ControllerState = {
     lastAssignedStep = 0, -- Tracks the spiral progression
     turtleStatus = {}, -- Format: {turtleLabel = {reboot=true/false, goto = {x,y,z}}
 }
-local addValuablesToTable = function(table,blockToAdd)
+local addValuablesToTable = function(valuables,blockToAdd)
     -- Check if target already exists
-    if table[blockToAdd] then
+    if valuables[blockToAdd] then
         return
     end
-    table.insert(table, { [blockToAdd]=true })
+    table.insert(valuables, { [blockToAdd]=true })
 end
 
 local CHUNK_SIZE = 16
