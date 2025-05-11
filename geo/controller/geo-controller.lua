@@ -6,7 +6,9 @@ local DEFAULT_CONFIG = {
     modemSide = "left", -- Default modem side
     yMin = 8,
     yMax = 30,
-    valuableBlocks = { ["minecraft:ancient_debris"] = true }
+    valuableBlocks = { ["minecraft:ancient_debris"] = true },
+    controllerChannel = 1
+
 }
 
 local CONFIG_FILENAME = "debris_controller_config"
@@ -77,7 +79,7 @@ end
 -- Initialize controller
 local function initController()
     -- Load existing state or create new
-    local saved = utils.getConfig(STATE_FILENAME, ControllerState, false)
+    local saved = utils.getConfig(STATE_FILENAME, ControllerState)
     ControllerState = saved
 
     -- Get current position for start chunk if not set
@@ -170,7 +172,7 @@ local function run()
 
         print(string.format("Received message on channel %d, reply to %d", channel, replyChannel))
 
-        if channel == 1 then
+        if channel == config.controllerChannel then
             local request = textutils.unserialize(message)
             if request then
                 if request.type == "status" then

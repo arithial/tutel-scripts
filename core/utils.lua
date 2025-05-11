@@ -75,6 +75,7 @@ function persistentDig(digFunc, inspectFunc, conflictingTutels)
     return true
 end
 
+
 self = {
     enderFuelSlot = 1,
     fuelSuckCount = 64, -- Number of fuel items (e.g., coal) to suck at start.
@@ -99,30 +100,18 @@ self = {
         file.close()
     end,
 
-    createConfig = function(table, name, editOnCreate)
-        local openEdit = editOnCreate or false
+    createConfig = function(table, name)
         local file = fs.open(name .. ".config", "w+")
         file.write(textutils.serialize(table))
         file.flush()
         file.close()
-        if openEdit then
-            local success, reason = pcall(function()
-                shell.run("edit", name .. ".config")
-            end)
-            if not success then
-                print("Editing failed.")
-            end
-        end
     end,
 
     cleanLoadedConfig = function(loaded, default)
-        if type(default) ~= "table" then
-            error(" Default must be tables")
+        if type(loaded) ~= "table" or type(default) ~= "table" then
+            error("Both loaded and default must be tables")
         end
 
-        if type(loaded) ~= "table" then
-            return default
-        end
         -- Create new table to store cleaned config
         local cleaned = {}
 
@@ -143,9 +132,6 @@ self = {
         local file = fs.open(name .. ".config", "r")
         local data = file.readAll()
         file.close()
-        if not data or ""==data then
-            return default
-        end
         local loaded = textutils.unserialize(data)
         if default then
             return self.cleanLoadedConfig(loaded, default)
@@ -163,26 +149,24 @@ self = {
         return exists
     end,
 
-    getConfig = function(name, default, openEditOnCreate)
+    getConfig = function(name, default)
         if not name then
             error("Config name is required")
         end
-        local openEdit = openEditOnCreate or false
 
         -- Check if default is provided
         if default == nil then
             error("Default config is required")
         end
-        if not self.configExists(name) and openEdit then
-            self.createConfig(default, name, true)
-        end
+
         if self.configExists(name) then
             return self.loadConfig(name, default)
         else
-            self.createConfig(default, name, false)
+            self.createConfig(default, name)
             return default
         end
     end,
+
 
 
     findItem = function(itemName)

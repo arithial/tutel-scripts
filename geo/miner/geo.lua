@@ -76,7 +76,7 @@ local addTarget = function(targetToAdd, x, y, z)
     table.insert(targetToAdd, { x = x, y = y, z = z })
 end
 
-local STATE_FILENAME = "debris_miner"
+local STATE_FILENAME = "miner_state"
 
 -- Track equipped peripheral globally
 local currentEquipped = nil
