@@ -7,11 +7,12 @@ local DEFAULT_CONFIG = {
     modemSide = "left", -- Default modem side
     yMin = 8,
     yMax = 30,
-    valuableBlocks = { ["minecraft:ancient_debris"] = true }
+    valuableBlocks = { ["minecraft:ancient_debris"] = true },
+    lastTransitionLayerUsed = 7
 }
 
 local DEFAULT_REGISTRY = {
-    turtles = {} -- Format: { turtleLabel = { assignedChunk = {sw={x,y,z}, ne={x,y,z}}, reboot = false, message, status, fuelLevel, lastKnownLocation = {x, y, z}, moveTo = {x, y, z},transitionLayer}}
+    turtles = {} -- Format: { turtleLabel = { assignedChunk = {sw={x,y,z}, ne={x,y,z}}, reboot = false, message, status, fuelLevel, lastKnownLocation = {x, y, z}, moveTo = {x, y, z},transitionLayer, horizontalOffset}}
 }
 local TURTLE_REGISTRY_FILENAME = "turtle-registry"
 local turtleRegistry = utils.getConfig(TURTLE_REGISTRY_FILENAME, DEFAULT_REGISTRY)
@@ -167,20 +168,28 @@ local function printStatus()
     local count = 0
     for label, turtleData in pairs(turtleRegistry.turtles) do
         count = count + 1
-        print(string.format("%s: SW(%d,%d,%d) NE(%d,%d,%d)",
-                label,
-                turtleData.assignedChunk.sw.x,
-                turtleData.assignedChunk.sw.y or config.yMin,
-                turtleData.assignedChunk.sw.z,
-                turtleData.assignedChunk.ne.x,
-                turtleData.assignedChunk.ne.y or config.yMax,
-                turtleData.assignedChunk .ne.z))
-        print(string.format("Y transition layer: %d",turtleDatatransitionLayer))
-        print(string.format("Last Known Location: %d,%d,%d; status: %s",
-                turtleData.lastKnownLocation.x,
-                turtleData.lastKnownLocation.y,
-                turtleData.lastKnownLocation.z,
-                turtleData.status))
+        if turtleData.assignedChunk and turtleData.assignedChunk.sw and turtleData.assignedChunk.ne then
+            print(string.format("%s: SW(%d,%d,%d) NE(%d,%d,%d)",
+                    label,
+                    turtleData.assignedChunk.sw.x,
+                    turtleData.assignedChunk.sw.y or config.yMin,
+                    turtleData.assignedChunk.sw.z,
+                    turtleData.assignedChunk.ne.x,
+                    turtleData.assignedChunk.ne.y or config.yMax,
+                    turtleData.assignedChunk .ne.z))
+        else
+            print(label..": ")
+        end
+        print(string.format("Y transition layer: %d",turtleData.transitionLayer))
+        if turtleData.lastKnownLocation then
+            print(string.format("Last Known Location: %d,%d,%d; Status: %s",
+                    turtleData.lastKnownLocation.x,
+                    turtleData.lastKnownLocation.y,
+                    turtleData.lastKnownLocation.z,
+                    turtleData.status))
+        elseif turtleData.status then
+            print("Status: " .. turtleData.status)
+        end
     end
 
     if count == 0 then
@@ -195,6 +204,25 @@ local function cleanup()
     -- Save state
     saveState()
 end
+
+local function getStaggeredOffset(turtleLabel)
+    if not turtleRegistry.turtles[turtleLabel] then
+        return 0
+    end
+
+    local turtleData = turtleRegistry.turtles[turtleLabel]
+    if not turtleData.offset then
+        -- Calculate and store fixed offset for this turtle
+        local seed = os.time() * turtleData.transitionLayer +
+                string.byte(turtleLabel, 1) -- Use turtle label in seed
+        math.randomseed(seed)
+        turtleData.offset = math.random(-6, 6)
+        saveState()
+    end
+
+    return turtleData.offset
+end
+
 -- Main controller loop
 local function run()
     initController()
@@ -252,14 +280,17 @@ local function run()
                     elseif newTransitionLayer > config.yMax then
                         newTransitionLayer = config.yMin
                     end
+                    turtleRegistry.turtles[request.label].transitionLayer = newTransitionLayer
+                    saveState()
+                    local horizontalOffset = getStaggeredOffset(request.label);
                     modem.transmit(replyChannel, commons.controllerChannel, textutils.serialize({
                         type = commons.requestTypes.transitionRequest,
                         label = request.label,
                         transitionLayer = newTransitionLayer,
+                        horizontalOffset = horizontalOffset
                     }))
                     config.lastTransitionLayerUsed = newTransitionLayer
-                    turtleRegistry.turtles[request.label].transitionLayer = newTransitionLayer
-                    saveState()
+
                 elseif request.type == commons.requestTypes.newChunkRequest then
 
                     local nextChunk = handleTurtleRequest(

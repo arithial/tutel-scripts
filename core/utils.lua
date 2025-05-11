@@ -39,17 +39,19 @@ function persistentDig(digFunc, inspectFunc, conflictingTutels)
 
     local continueDigging = true
     while continueDigging do
+        local success, data = inspectFunc()
+
         -- Check what we're trying to dig
-        if isFacingTutel(inspectFunc) then
+        if (data  and data.name == "enderstorage:ender_chest") or isFacingTutel(inspectFunc) then
             if attempts < 50 then
                 os.sleep(math.random(1, 3) * 0.5) -- Small delay between attempts
             else
                 if conflictingTutels then
                     conflictingTutels()
-                    return false, "Blocked by another turtle. Conflict resolution triggered."
+                    return false, "Blocked by another turtle or ender storage. Conflict resolution triggered."
                 else
                     print("No Emergency Fallback!")
-                    return false, "Blocked by another turtle. No Conflict resolution."
+                    return false, "Blocked by another turtle or ender storage. No Conflict resolution."
 
                 end
             end

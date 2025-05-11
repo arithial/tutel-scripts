@@ -1,6 +1,5 @@
 return {
     controllerChannel = 1,
-    ControllerChannel = 1,
     requestTypes = {
         newChunkRequest = "newChunk",
         statusRequest = "status",

@@ -528,6 +528,8 @@ local function getChunkCenter()
     return centerX, centerZ
 end
 
+
+
 -- Helper function for ChunkScanner
 -- Function to move to mining target
 local function moveToTarget(target)
@@ -549,14 +551,15 @@ local function moveToChunk()
     end
     sendStatusMessage("Moving to assigned chunk")
 
-    local centerX, centerZ = getChunkCenter()
+    local offset = State.currentChunk.horizontalOffset or 0
+    local centerX, centerZ = getChunkCenter() 
     print("Moving to chunk center: (" .. centerX .. "," .. centerZ .. ")")
 
     moveToTransitionLayer()
 
     -- First move to Y=8 (starting height for ancient debris)
     -- Then move to the chunk center
-    return moveToXZ(centerX, centerZ)
+    return moveToXZ(centerX + offset, centerZ + offset)
 end
 
 
@@ -690,6 +693,8 @@ local function cleanup()
     unequipPeripheral()
     -- Save state
     utils.saveConfig(State, STATE_FILENAME)
+    utils.saveConfig(config, CONFIG_FILENAME)
+
 end
 
 -- Communication with controller
@@ -803,11 +808,11 @@ end
 local terminate = false
 
 local function requestTransitionLayer()
-    if config.transitionLayer then
+    if config.transitionLayer and config.horizontalOffset then
         return -- we already have an assigned transition layer.
     end
     print("Requesting transition layer")
-    equipPeripheral(config.peripheralSide)
+    equipPeripheral(config.enderModemSlot)
     local modem = peripheral.wrap(config.peripheralSide)
     if not modem then
         print("ERROR: No modem found on " .. config.peripheralSide .. " side")
@@ -847,6 +852,9 @@ local function requestTransitionLayer()
                     handleSystemResponses(response)
                     if  response.type == commons.requestTypes.transitionRequest then
                         config.transitionLayer = response.transitionLayer
+                        config.horizontalOffset = response.horizontalOffset
+                        utils.saveConfig(config, CONFIG_FILENAME)
+
                         break
                     else
                         error("Incorrect response type received. Expected: "..commons.requestTypes.transitionRequest.." Got: "..response.type)
