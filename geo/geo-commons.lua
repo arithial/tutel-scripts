@@ -1,5 +1,4 @@
-commons =
-{
+return {
     controllerChannel = 1,
     requestTypes = {
         newChunkRequest = "newChunk",
@@ -11,5 +10,3 @@ commons =
         transitionRequest = "transition"
     }
 }
-
-return commons
