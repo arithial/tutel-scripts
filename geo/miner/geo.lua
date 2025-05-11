@@ -1,4 +1,13 @@
-local utils = require("./core/utils")
+local movement = require("./core/movement")
+local utils = movement.utils
+if not utils then
+    error("Nil utils")
+end
+movement.trackHome = false
+local SCANNER = "advancedperipherals:geo_scanner"
+local PICKAXE = "minecraft:diamond_pickaxe"
+local MODEM = "computercraft:wireless_modem_advanced"
+local CHEST = "enderstorage:ender_chest"
 local function log(message, level)
     level = level or "INFO" -- Default level
     print("[" .. level .. "] " .. message)
@@ -17,25 +26,23 @@ local DEFAULT_CONFIG = {
     scanTimeout = 5,
     controllerChannel = 1,
     replyChannel = 2,
-    valuableBlocks = {
-        ["minecraft:ancient_debris"] = true
-    },
     -- Scanner specific settings
     scanRadius = 8, -- Optimal radius for no fuel cost
     scanInterval = 7, -- How far to move between scans (slightly less than radius*2 for overlap)
 }
 
 local CONFIG_FILENAME = "debris_miner_config"
-local config = utils.getConfig(CONFIG_FILENAME, DEFAULT_CONFIG)
-utils.enderFuelSlot = config.fuelChestSlot
+local config =utils.getConfig(CONFIG_FILENAME, DEFAULT_CONFIG)
 local smartDetect = false
+local analyzeChunk = false
 for _, arg in ipairs(args) do
     if string.lower(arg) == "-s" then
         smartDetect = true
-        break
+    elseif string.lower(arg) == "-c" then
+        analyzeChunk = true
     end
 end
---utils.init({
+--movement.utils.init({
 --    pickaxeSlot = config.pickaxeSlot,
 --    enderModemSlot = config.enderModemSlot,
 --    lowFuelThreshold = config.lowFuelThreshold,
@@ -45,11 +52,18 @@ end
 
 -- State management
 local State = {
-    currentChunk = nil, -- Format: {sw = {x,z}, ne = {x,z}}
+    currentChunk = nil, -- Format: {sw = {x,y,z}, ne = {x,y,z}, valuableBlocks = {[blockName] = true}}
     scannedCoords = {}, -- Set of "y,x,z" strings for positions already scanned
     foundTargets = {} -- List of {x,y,z} for debris found but not mined
 
 }
+-- Return valuable blocks from chunk state or default to ancient debris
+local function getValuables()
+    if State.currentChunk and State.currentChunk.valuableBlocks then
+        return State.currentChunk.valuableBlocks
+    end
+    return { ["minecraft:ancient_debris"] = true }
+end
 
 local addTarget = function(targetToAdd, x, y, z)
     -- Check if target already exists
@@ -70,7 +84,7 @@ local currentEquipped = nil
 local function unequipPeripheral()
     if currentEquipped then
         local oldSlot = turtle.getSelectedSlot() -- Remember current slot
-        utils.clearSlot(currentEquipped, turtle)
+       utils.clearSlot(currentEquipped, turtle)
         turtle.select(currentEquipped)
         if turtle.equipRight() then
             print("Unequipped peripheral from slot " .. currentEquipped)
@@ -111,6 +125,13 @@ local function equipPeripheral(slot)
     end
 end
 
+local function doRefuel()
+    print("Fuel low, refueling...")
+    equipPeripheral(config.pickaxeSlot)
+   utils.ender_refuel(config.fuelChestSlot)
+    turtle.select(5)
+end
+
 -- GPS and position utilities
 local function getPosition(forcePickaxe)
     local equipPickaxeAtEnd = forcePickaxe or true
@@ -146,6 +167,13 @@ local function depositValuables()
         [config.pickaxeSlot] = true,
         [config.enderModemSlot] = true
     }
+    local blacklistedItems = {
+        [SCANNER] = true,
+        [PICKAXE] = true,
+        [MODEM] = true,
+        [CHEST] = true
+    }
+    equipPeripheral(config.pickaxeSlot)
 
     turtle.select(config.depositChestSlot)
     if turtle.inspectUp() then
@@ -157,7 +185,7 @@ local function depositValuables()
         -- Skip protected slots
         if not protectedSlots[slot] then
             local item = turtle.getItemDetail(slot)
-            if item then
+            if item and not blacklistedItems[item.name] then
                 turtle.select(slot)
                 turtle.dropUp()
             end
@@ -166,13 +194,13 @@ local function depositValuables()
 
     turtle.select(config.depositChestSlot)
     turtle.digUp()
-
-    equipPeripheral(config.pickaxeSlot)  -- Always return to pickaxe
+    turtle.select(5)
 end
 local function isInventoryFull()
     -- Define protected slots
     local protectedSlots = {
         [1] = true,
+        [13] = true,
         [14] = true,
         [config.depositChestSlot] = true,
         [config.fuelChestSlot] = true,
@@ -192,39 +220,71 @@ local function isInventoryFull()
     -- If we get here, all non-protected slots are full
     return true
 end
-
+local function handleInventory()
+    if isInventoryFull() then
+        print("Inventory full, depositing valuables...")
+        depositValuables()
+    end
+end
 -- Add this new function near other helper functions
 local function handleTurtleUtilities()
     turtle.select(5)
     equipPeripheral(config.pickaxeSlot)
-    print("Checking inventory fullness...")
-    if isInventoryFull() then
-        equipPeripheral(config.pickaxeSlot)
-        print("Inventory full, depositing valuables...")
-        depositValuables()
-    end
+    handleInventory()
     -- Check fuel
     print("Checking fuel level...")
     if not utils.isFueled(config.lowFuelThreshold) then
-        print("Fuel low, refueling...")
-        equipPeripheral(config.pickaxeSlot)
-        utils.ender_refuel()
+        doRefuel()
     end
+end
+
+local function getAlternateFallback()
+    local strategies = {
+        function() -- Strategy 1: Move diagonally
+            turtle.turnLeft()
+            turtle.turnRight()
+           utils.moveForward(math.random(2, 6))
+           utils.moveUp(math.random(2, 6))
+            return false
+        end,
+        function() -- Strategy 2: Spiral up
+            for i = 1, math.random(2, 4) do
+               utils.moveUp(1)
+                turtle.turnRight()
+               utils.moveForward(1)
+            end
+            return false
+        end
+    }
+    return strategies[math.random(1, #strategies)]
 end
 
 
 -- Move vertically to a specific Y-coordinate, handling inventory along the way
 -- Common movement fallback method
-local function movementFallback()
+local function verticalFallback()
     os.sleep(math.random(1, 3))
     turtle.turnLeft()
-    local randomNum = math.random(4, 8)
-    utils.moveForward(randomNum)
+    local randomNum = math.random(2, 12)
+   utils.moveForward(randomNum, getAlternateFallback())
     os.sleep(math.random(1, 6))
 
     turtle.turnRight()
-    local randomNum = math.random(4, 8)
-    utils.moveForward(randomNum)
+    local randomNum = math.random(2, 8)
+   utils.moveForward(randomNum, getAlternateFallback())
+    os.sleep(math.random(1, 3))
+    return false
+end
+
+local function horizontalFallback()
+    os.sleep(math.random(1, 3))
+    local randomNum = math.random(4, 12)
+   utils.moveUp(randomNum, getAlternateFallback())
+    os.sleep(math.random(1, 6))
+
+    turtle.turnRight()
+    local randomNum = math.random(2, 8)
+   utils.moveForward(randomNum, getAlternateFallback())
     os.sleep(math.random(1, 3))
     return false
 end
@@ -250,14 +310,14 @@ local function moveToY(targetY)
         -- Need to move down
         local steps = y - targetY
         print("Moving down " .. steps .. " blocks")
-        if not utils.moveDown(steps, movementFallback) then
+        if not utils.moveDown(steps, verticalFallback) then
             goto retryY
         end
     elseif y < targetY then
         -- Need to move up
         local steps = targetY - y
         print("Moving up " .. steps .. " blocks")
-        if not utils.moveUp(steps, movementFallback) then
+        if not utils.moveUp(steps, verticalFallback) then
             goto retryY
         end
     end
@@ -272,7 +332,7 @@ local function moveToXZ(targetX, targetZ)
     local function determineMovementDirection()
         local x1, _, z1 = getPosition(true)
 
-        if not utils.moveForward(1) then
+        if not utils.moveForward(1,horizontalFallback) then
             error("Cannot determine direction - path blocked")
         end
 
@@ -333,7 +393,7 @@ local function moveToXZ(targetX, targetZ)
         equipPeripheral(config.pickaxeSlot)
         -- Now we're facing the right way, move all steps at once
         print(string.format("Moving %d blocks along X-axis", steps))
-        if not utils.moveForward(steps, movementFallback) then
+        if not utils.moveForward(steps, horizontalFallback) then
             print("retrying...")
             goto retryXZ
         end
@@ -361,7 +421,7 @@ local function moveToXZ(targetX, targetZ)
 
         -- Now we're facing the right way, move all steps at once
         print(string.format("Moving %d blocks along Z-axis", steps))
-        if not utils.moveForward(steps, movementFallback) then
+        if not utils.moveForward(steps, horizontalFallback) then
             print("retrying...")
             goto retryXZ
         end
@@ -388,8 +448,15 @@ local function moveToXZ(targetX, targetZ)
     return true
 end
 
-
-
+local function moveToStartingYLevel()
+    local targetY = 8 -- default fallback
+    if State and State.currentChunk then
+        local swY = State.currentChunk.sw and State.currentChunk.sw.y or 8
+        local neY = State.currentChunk.ne and State.currentChunk.ne.y or 22
+        targetY = math.min(swY, neY)
+    end
+    moveToY(targetY)
+end
 
 -- Check if coordinates are within current chunk
 local function isInChunk(x, z)
@@ -433,8 +500,10 @@ local function moveToChunk()
     local centerX, centerZ = getChunkCenter()
     print("Moving to chunk center: (" .. centerX .. "," .. centerZ .. ")")
 
+
+    moveToStartingYLevel()
+
     -- First move to Y=8 (starting height for ancient debris)
-    moveToY(8)
     -- Then move to the chunk center
     return moveToXZ(centerX, centerZ)
 end
@@ -457,7 +526,17 @@ local function moveToNextScanPosition()
     end
 
     -- Define the Y levels we want to scan
-    local scanLevels = { 8, 15, 22 }
+    local scanLevels = {}
+    if State.currentChunk then
+        local minY = math.min(State.currentChunk.sw.y, State.currentChunk.ne.y) or 8
+        local maxY = math.max(State.currentChunk.sw.y, State.currentChunk.ne.y) or 22
+        local numLevels = math.floor((maxY - minY) / config.scanInterval)
+        for i = 0, numLevels do
+            table.insert(scanLevels, minY + (config.scanInterval * i))
+        end
+    else
+        return false, "No chunk designated. Abortin scan"
+    end
 
     -- Find the next Y level to scan
     for _, nextY in ipairs(scanLevels) do
@@ -525,7 +604,7 @@ local function scanArea()
     -- Process results (blocks are relative to turtle position)
     print("Processing scan results...")
     for _, block in ipairs(blocks) do
-        if block.name == "minecraft:ancient_debris" then
+        if getValuables()[block.name] then
             local targetX = currentX + block.x
             local targetZ = currentZ + block.z
             local targetY = currentY + block.y
@@ -559,7 +638,7 @@ local function cleanup()
     -- Make sure to unequip any peripherals
     unequipPeripheral()
     -- Save state
-    utils.saveConfig(State, STATE_FILENAME)
+   utils.saveConfig(State, STATE_FILENAME)
 end
 
 -- Communication with controller
@@ -620,10 +699,12 @@ local function requestNewChunk()
                     State.currentChunk = response.chunk
                     State.scannedCoords = {}
                     State.foundTargets = {}
-                    utils.saveConfig(State, STATE_FILENAME)
+                   utils.saveConfig(State, STATE_FILENAME)
 
                     print("=== Chunk Request Complete ===")
                     return true
+                elseif response and response.type == "reboot" then
+                    os.reboot()
                 else
                     print("Received invalid or unexpected response type")
                 end
@@ -657,25 +738,50 @@ local function checkAndUnequipExistingPeripherals()
     return false, "No free slots to unequip peripheral"
 end
 
+local function hasEnderChest(slot)
+    local chest = turtle.getItemDetail(slot)
+    return chest and chest.name == CHEST
+
+end
+local terminate = false
+
 -- Error handling wrapper  
 local function initialize()
     print("Initializing turtle...")
-
+    movement.canBaseRefuel = false
+    movement.canSelfRefuel = true
+    movement.selfRefuel = function()
+        doRefuel()
+    end
+    movement.cleanup = handleInventory
+    movement.homeOnFail=false
+    movement.minFuelLevel=config.lowFuelThreshold
+   utils.enderFuelSlot = config.fuelChestSlot
     checkAndUnequipExistingPeripherals()
 
     -- Determine the turtle's initial facing direction
     print("Checking required items...")
-    utils.checkAndSort("advancedperipherals:geo_scanner", 1, config.geoScannerSlot, turtle)
-    utils.checkAndSort("minecraft:diamond_pickaxe", 1, config.pickaxeSlot, turtle)
-    utils.checkAndSort("computercraft:wireless_modem_advanced", 1, config.enderModemSlot, turtle)
+   utils.checkAndSort(SCANNER, 1, config.geoScannerSlot, turtle)
+   utils.checkAndSort(PICKAXE, 1, config.pickaxeSlot, turtle)
+   utils.checkAndSort(MODEM, 1, config.enderModemSlot, turtle)
+    if not hasEnderChest(config.fuelChestSlot) then
+        return false, "Missing ender fuel chest in slot "..config.fuelChestSlot
+    end
+    if not hasEnderChest(config.depositChestSlot) then
+        return false, "Missing ender deposit chest in slot "..config.depositChestSlot
+    end
+    return true
 end
-
 -- And in the main mining loop, add periodic cleanup:
 local function run()
     -- Load or initialize state
-    local saved = utils.getConfig(STATE_FILENAME, State)
+    local saved =utils.getConfig(STATE_FILENAME, State)
     State = saved
-    initialize()
+    local init, failReason = initialize()
+    if not init then
+        terminate = true
+        return false, failReason
+    end
 
     while true do
         equipPeripheral(config.pickaxeSlot)
@@ -703,19 +809,32 @@ local function run()
         if centerX then
             moveToXZ(centerX, centerZ)
         end
-        print("Scanning: ")
-        equipPeripheral(config.geoScannerSlot)
-        local scanner = peripheral.wrap(config.peripheralSide)
-        if not scanner then
-            print("ERROR: No scanner found on " .. config.peripheralSide .. " side")
-            error("No scanner found")
+        local shouldScan = false
+        if analyzeChunk then
+            print("Scanning: ")
+            equipPeripheral(config.geoScannerSlot)
+            local scanner = peripheral.wrap(config.peripheralSide)
+            if not scanner then
+                print("ERROR: No scanner found on " .. config.peripheralSide .. " side")
+                error("No scanner found")
+            end
+            local analysis = scanner.chunkAnalyze()
+
+            os.sleep(0.2) -- Wait a bit before trying again if we hit cooldown
+
+
+            for key,value in pairs(getValuables()) do
+                if analysis[key] and analysis[key] > 0 then
+                    shouldScan = true
+                    break
+                end
+            end
+        else
+            shouldScan = true
         end
-        local analysis = scanner.chunkAnalyze()
-
-        os.sleep(0.2) -- Wait a bit before trying again if we hit cooldown
-
         -- Only process if we found any ancient debris
-        if analysis["minecraft:ancient_debris"] and analysis["minecraft:ancient_debris"] > 0 then
+        if shouldScan then
+            moveToStartingYLevel()
             while moveToNextScanPosition() do
                 -- Scan for new targets
                 local newTargets = scanArea()
@@ -730,7 +849,6 @@ local function run()
 
         -- All Y levels scanned, reset state
         print("Chunk scanned, resetting chunk...")
-        State.currentChunk = nil
 
         -- Mine any known targets first
         print("Known targets to mine: " .. #State.foundTargets)
@@ -746,6 +864,7 @@ local function run()
 
             handleTurtleUtilities()  -- Replace the existing check
         end
+        State.currentChunk = nil
 
         -- Save state after each major operation
         print("Saving state...")
@@ -767,8 +886,11 @@ local function main()
                     local ok, err = pcall(run)
                     if not ok then
                         print("Error: " .. tostring(err))
-                        print("Restarting in 5 seconds...")
-                        os.sleep(5)
+                        if terminate then
+                            break
+                        end
+                        print("Restarting in 50 seconds...")
+                        os.sleep(50)
                     end
                     cleanup()
                 end

@@ -17,18 +17,33 @@ local function quit(reason)
     movement.panic(reason)
 end
 
-local function saveHome()
-    if (relativeHome.forward == 0 and relativeHome.right == 0 and relativeHome.up == 0 and relativeHome.rotation == 0) then
-        fs.delete(HOME_FILE)
-        return
+local function resetHome(force)
+    if movement.trackHome or force then
+        relativeHome.forward = 0
+        relativeHome.right = 0
+        relativeHome.up = 0
+        relativeHome.rotation = 0
     end
-    local file = fs.open(HOME_FILE, 'w+')
-    file.writeLine(relativeHome.forward)
-    file.writeLine(relativeHome.right)
-    file.writeLine(relativeHome.up)
-    file.writeLine(relativeHome.rotation)
-    file.flush()
-    file.close()
+end
+
+local function saveHome()
+
+    if movement.trackHome then
+        if (relativeHome.forward == 0 and relativeHome.right == 0 and relativeHome.up == 0 and relativeHome.rotation == 0) then
+            fs.delete(HOME_FILE)
+            return
+        end
+        local file = fs.open(HOME_FILE, 'w+')
+        file.writeLine(relativeHome.forward)
+        file.writeLine(relativeHome.right)
+        file.writeLine(relativeHome.up)
+        file.writeLine(relativeHome.rotation)
+        file.flush()
+        file.close()
+    else
+        fs.delete(HOME_FILE)
+        resetHome(true)
+    end
 end
 
 local rotationEnums = {
@@ -87,44 +102,36 @@ local moveUpdate = {
 local homing = false
 
 local tMove = {
-    ['forward'] = function()
-        return utils.moveForward(1)
-    end,
-    ['back'] = turtle.back, -- Keep original as utils doesn't have moveBack
-    ['turnRight'] = function()
-        return utils.turnRight(1)
-    end,
-    ['turnLeft'] = function()
-        return utils.turnLeft(1)
-    end,
-    ['up'] = function()
-        return utils.moveUp(1)
-    end,
-    ['down'] = function()
-        return utils.moveDown(1)
-    end,
+    ['forward'] = turtle.forward,
+    ['back'] = turtle.back,
+    ['turnRight'] = turtle.turnRight,
+    ['turnLeft'] = turtle.turnLeft,
+    ['up'] = turtle.up,
+    ['down'] = turtle.down,
 }
 
 local function move(direction)
-    if (not movement.isFueled()) then
-        if movement.canSelfRefuel and movement.selfRefuel then
-            local success, errorMessage = movement.selfRefuel()
+    if not movement['isFueled']() then
+        if movement['canSelfRefuel'] and movement['selfRefuel'] then
+            local success, errorMessage = movement['selfRefuel']()
             if not success then
                 return success, errorMessage
             end
-        elseif movement.canBaseRefuel and movement.baseRefuel then
-            local success, errorMessage = movement.baseRefuelReturn()
+        elseif movement['canBaseRefuel'] and movement['baseRefuel'] then
+            local success, errorMessage = movement['baseRefuelReturn']()
             if not success then
                 return success, errorMessage
             end
         end
     end
-    moved, reason = tMove[direction]()
+    local moved, reason = tMove[direction]()
     if moved then
-        moveUpdate[direction]()
+        if movement.trackHome then
+            moveUpdate[direction]()
+        end
         moves_counter = moves_counter + 1
         if moves_counter >= 10 then
-            if movement['cleanup'] and movement['logStatus'] then
+            if movement['cleanup'] and movement['cleanup']() and movement['logStatus'] then
                 print("Inventory cleaned...")
             end
             moves_counter = 0
@@ -134,10 +141,6 @@ local function move(direction)
         quit(reason)
     end
     saveHome()
-    if homing then
-        return moved, reason
-    end
-
     return moved, reason
 end
 
@@ -161,12 +164,15 @@ turtle['down'] = function()
 end
 DEFAULT_FUNCTION_MESSAGE = "Not Implemented"
 movement = {
-    ['panic'] = function(reason)
+    utils = utils,
+    resetHome = resetHome,
+    trackHome = true,
+    panic = function(reason)
         print(debug.traceback(reason))
         error(reason)
     end,
-    ['baseRefuel'] = function()
-        if movement.logStatus then
+    baseRefuel = function()
+        if movement['logStatus'] then
             print("Starting refuel operation...")
         end
         local currentSlot = turtle.getSelectedSlot()
@@ -180,31 +186,31 @@ movement = {
             end
         end
         if not freeSlot then
-            if movement.logStatus then
+            if movement['logStatus'] then
                 print("Refuel failed: Inventory Full")
             end
             return false, "Inventory Full..."
         end
         turtle.select(freeSlot)
-        while not movement.isFueled() do
-            if movement.logStatus then
+        while not movement['isFueled']() do
+            if movement['logStatus'] then
                 print("Attempting to collect fuel...")
             end
-            local suckUpSucess, sucUpFailed = turtle.suckUp(64)
-            if not suckUpSucess then
-                if movement.logStatus then
+            local suckUpSuccess, sucUpFailed = turtle.suckUp(64)
+            if not suckUpSuccess then
+                if movement['logStatus'] then
                     print("Fuel collection failed: " .. (sucUpFailed or "Unknown error"))
                 end
-                return suckUpSucess, sucUpFailed
+                return suckUpSuccess, sucUpFailed
             end
             local refuelSuccess, refuelFailedMessage = turtle.refuel(64)
             if refuelSuccess then
-                if movement.logStatus then
+                if movement['logStatus'] then
                     print("Successfully refueled. Current fuel level: " .. turtle.getFuelLevel())
                 end
                 success = true
             else
-                if movement.logStatus then
+                if movement['logStatus'] then
                     print("Refuel failed: " .. (refuelFailedMessage or "Unknown error"))
                 end
                 return refuelSuccess, refuelFailedMessage
@@ -216,33 +222,34 @@ movement = {
         end
         return success
     end,
-    ['selfRefuel'] = function()
+    selfRefuel = function()
         return false, DEFAULT_FUNCTION_MESSAGE
     end,
-    ['canSelfRefuel'] = false,
-    ['canBaseRefuel'] = true,
-    ['homeOnFail'] = false,
-    ['logStatus'] = false,
-    ['cleanup'] = function()
+    canSelfRefuel = false,
+    canBaseRefuel = true,
+    homeOnFail = false,
+    logStatus = false,
+    cleanup = function()
         return false, DEFAULT_FUNCTION_MESSAGE
     end,
-    ['minFuelLevel'] = 1000,
-    ['isFueled'] = function()
+    minFuelLevel = 1000,
+    isFueled = function()
         local currentFuel = turtle.getFuelLevel()
         if currentFuel == "unlimited" then
             return true
         end
         return currentFuel >= movement.minFuelLevel
-    end,
+    end
 }
 
 local function rotate(amount)
     amount = fixRotation(amount)
     if amount < 0 then
-        return utils.turnLeft(1)
+        return turtle.turnLeft()
     end
+    local moved, reason
     while amount ~= 0 do
-        moved, reason = utils.turnRight(1)
+        moved, reason = turtle.turnRight()
         if not moved then
             quit(reason)
         else
@@ -253,59 +260,44 @@ local function rotate(amount)
 end
 
 local function upHome()
-    moved = false
-    reason = 'up homed'
     local zMove = utils.moveUp
     if relativeHome.up > 0 then
         zMove = utils.moveDown
     end
-    while relativeHome.up ~= 0 do
-        moved, reason = zMove(1)
-        if not moved then
-            return moved, reason
-        end
-    end
-    return moved, reason
+    local moved, reason = zMove(math.abs(relativeHome.up))
+    return moved and relativeHome.up == 0, reason or 'up homed'
 end
 
 local function forwardHome()
-    moved = false
-    reason = 'forward homed'
     if relativeHome.forward > 0 then
         rotate(rotationEnums['backward'] - relativeHome.rotation)
     end
     if relativeHome.forward < 0 then
         rotate(rotationEnums['forward'] - relativeHome.rotation)
     end
-    while relativeHome.forward ~= 0 do
-        moved, reason = utils.moveForward(1)
-        if not moved then
-            return moved, reason
-        end
-    end
-    return moved, reason
+    local moved, reason = utils.moveForward(math.abs(relativeHome.forward))
+
+    return moved and relativeHome.forward == 0, reason or 'forward homed'
 end
 
 local function rightHome()
-    moved = false
-    reason = 'right homed'
     if relativeHome.right > 0 then
         rotate(rotationEnums['left'] - relativeHome.rotation)
     end
     if relativeHome.right < 0 then
         rotate(rotationEnums['right'] - relativeHome.rotation)
     end
-    while relativeHome.right ~= 0 do
-        moved, reason = utils.moveForward(1)
-        if not moved then
-            return moved, reason
-        end
-    end
-    return moved, reason
+
+    local moved, reason = utils.moveForward(math.abs(relativeHome.right))
+
+    return moved and relativeHome.right == 0, reason or 'right homed'
 end
 
 function movement.moveHome()
     homing = true
+    if not movement.trackHome then
+        return false, "Home Tracking disabled."
+    end
     if movement.logStatus then
         print('movement homing')
     end
@@ -332,7 +324,7 @@ function movement.baseRefuelReturn()
         ['up'] = relativeHome.up,
         ['rotation'] = relativeHome.rotation,
     }
-    moved, reason = movement.moveHome()
+    local moved, reason = movement.moveHome()
     if not moved then
         return moved, reason
     end
@@ -367,4 +359,4 @@ if file then
     print("Previous position loaded from " .. HOME_FILE)
 end
 
-return movement  -- Changed from smove to movement
+return movement

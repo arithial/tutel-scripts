@@ -3,10 +3,7 @@ local utils = require("./core/utils")
 
 -- Configuration
 local DEFAULT_CONFIG = {
-    modemSide = "left", -- Default modem side
-    yMin = 8,
-    yMax = 30,
-    valuableBlocks = { ["minecraft:ancient_debris"] = true }
+    modemSide = "left"  -- Default modem side
 }
 
 local CONFIG_FILENAME = "debris_controller_config"
@@ -15,9 +12,8 @@ local config = utils.getConfig(CONFIG_FILENAME, DEFAULT_CONFIG)
 -- State structure for the controller
 local ControllerState = {
     startChunk = nil, -- Will store the SW and NE corners of starting chunk
-    activeChunks = {}, -- Format: {turtleLabel = {sw={x,y,z}, ne={x,y,z}}}
-    lastAssignedStep = 0, -- Tracks the spiral progression
-    turtleStatus = {}, -- Format: {turtleLabel = {reboot=true/false, goto = {x,y,z}}
+    activeChunks = {}, -- Format: {turtleLabel = {sw={x,z}, ne={x,z}}}
+    lastAssignedStep = 0 -- Tracks the spiral progression
 }
 
 local CHUNK_SIZE = 16
@@ -33,8 +29,8 @@ local function getChunkCorners(chunkX, chunkZ)
     local swX = chunkX * CHUNK_SIZE
     local swZ = chunkZ * CHUNK_SIZE
     return {
-        sw = { x = swX, y = config.yMin, z = swZ },
-        ne = { x = swX + CHUNK_SIZE - 1, y = config.yMax, z = swZ + CHUNK_SIZE - 1 }
+        sw = {x = swX, z = swZ},
+        ne = {x = swX + CHUNK_SIZE - 1, z = swZ + CHUNK_SIZE - 1}
     }
 end
 
@@ -100,15 +96,15 @@ local function handleTurtleRequest(turtleLabel, completedChunk)
     -- Calculate next chunk
     ControllerState.lastAssignedStep = ControllerState.lastAssignedStep + 1
     local startChunkX, startChunkZ = getChunkCoords(
-            ControllerState.startChunk.sw.x,
-            ControllerState.startChunk.sw.z
+        ControllerState.startChunk.sw.x,
+        ControllerState.startChunk.sw.z
     )
     local nextChunk = getNextChunkInSpiral(
-            startChunkX,
-            startChunkZ,
-            ControllerState.lastAssignedStep
+        startChunkX,
+        startChunkZ,
+        ControllerState.lastAssignedStep
     )
-    nextChunk.valuableBlocks = config.valuableBlocks
+
     -- Assign chunk to turtle
     ControllerState.activeChunks[turtleLabel] = nextChunk
 
@@ -121,30 +117,26 @@ end
 -- Print current status to the terminal
 local function printStatus()
     term.clear()
-    term.setCursorPos(1, 1)
+    term.setCursorPos(1,1)
 
     print("=== Ancient Debris Mining Controller ===")
-    print(string.format("Start chunk: SW(%d,%d,%d) NE(%d,%d,%d)",
-            ControllerState.startChunk.sw.x,
-            ControllerState.startChunk.sw.y or config.yMin,
-            ControllerState.startChunk.sw.z,
-            ControllerState.startChunk.ne.x,
-            ControllerState.startChunk.ne.y or config.yMax,
-            ControllerState.startChunk.ne.z))
+    print(string.format("Start chunk: SW(%d,%d) NE(%d,%d)",
+        ControllerState.startChunk.sw.x,
+        ControllerState.startChunk.sw.z,
+        ControllerState.startChunk.ne.x,
+        ControllerState.startChunk.ne.z))
     print(string.format("Total steps: %d", ControllerState.lastAssignedStep))
     print("\nActive Turtles:")
 
     local count = 0
     for label, chunk in pairs(ControllerState.activeChunks) do
         count = count + 1
-        print(string.format("%s: SW(%d,%d,%d) NE(%d,%d,%d)",
-                label,
-                chunk.sw.x,
-                chunk.sw.y or config.yMin,
-                chunk.sw.z,
-                chunk.ne.x,
-                chunk.ne.y or config.yMax,
-                chunk.ne.z))
+        print(string.format("%s: SW(%d,%d) NE(%d,%d)",
+            label,
+            chunk.sw.x,
+            chunk.sw.z,
+            chunk.ne.x,
+            chunk.ne.z))
     end
 
     if count == 0 then
@@ -166,9 +158,9 @@ local function run()
 
     while true do
         local event, side, channel, replyChannel, message, distance = os.pullEvent("modem_message")
-
+        
         print(string.format("Received message on channel %d, reply to %d", channel, replyChannel))
-
+        
         if channel == 1 then
             local request = textutils.unserialize(message)
             if request then
@@ -178,42 +170,20 @@ local function run()
                         type = "status",
                         state = ControllerState
                     }))
-                elseif request.type == "statusUpdate" then
-                    if request.rebootTurtle then
-                        if not ControllerState.turtleStatus[request.rebootTurtle] then
-                            ControllerState.turtleStatus[request.rebootTurtle] = {}
-                        end
-                        ControllerState.turtleStatus[request.rebootTurtle].reboot = true
-                        saveState() -- Save state after updating
-                    end
-
                 elseif request.label then
                     print("Mining request from: " .. request.label)
-                    local response
-                    if ControllerState.turtleStatus[request.label] and
-                            ControllerState.turtleStatus[request.label].reboot then
-                        print(request.label .. " has been marked for rebooting. Sending proper response")
-                        response = {
-                            type = "reboot"
-                        }
-                        ControllerState.turtleStatus[request.label].reboot = false
-                        ControllerState.turtleStatus[request.label] = nil
-                        saveState() -- Save state after updating
-                    else
-                        local nextChunk = handleTurtleRequest(
-                                request.label,
-                                request.completedChunk
-                        )
-                        response = {
-                            type = "chunk_assignment",
-                            chunk = nextChunk
-                        }
-                        print("Chunk assigned to: " .. request.label)
-                    end
+                    local nextChunk = handleTurtleRequest(
+                        request.label,
+                        request.completedChunk
+                    )
 
-                    modem.transmit(replyChannel, 1, textutils.serialize(response))
                     print("Sending chunk assignment to channel: " .. replyChannel)
-
+                    modem.transmit(replyChannel, 1, textutils.serialize({
+                        type = "chunk_assignment",
+                        chunk = nextChunk
+                    }))
+                    print("Chunk assigned to: " .. request.label)
+                    
                     -- Update display immediately
                     printStatus()
                 end

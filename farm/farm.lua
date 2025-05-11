@@ -8,7 +8,7 @@
 local fuelSuckCount = 64         -- Number of fuel items (e.g., coal) to suck at start.
 local lowFuelThreshold = fuelSuckCount * 8
 local utils = require("./core/utils")
-local farmConfig = {
+local DEFAULT_CONFIG = {
   targetStartItem = "minecraft:oak_fence",
   targetBorder = "minecraft:spruce_fence",
   storageTag = "enderstorage:ender_chest",
@@ -50,32 +50,23 @@ smove.print_status=false -- print messages when homing (for debugging)
 --------------------------------------------------
 
 -- Default crops and seeds configuration
-local crops = {
+local DEFAULT_CROPS = {
   crop1 = {sortSeeds = true, slotPosition = 2, crop = "minecraft:wheat", seed = "minecraft:wheat_seeds", age = 7 },
   crop2 = {sortSeeds = false, slotPosition = 3, crop = "minecraft:carrots", seed = "minecraft:carrot", age = 7 },
   crop3 = {sortSeeds = false, slotPosition = 4, crop = "expandeddelight:sweet_potato_crop", seed = "expandeddelight:sweet_potato", age = 7 },
   crop4 = {sortSeeds = false, slotPosition = 5, crop = "farmersdelight:onions", seed = "farmersdelight:onion", age = 7 }
 }
 
--- Function to load crop configuration from file
-local function loadCropConfig()
-  if utils.configExists("crop") then
-    crops = utils.loadConfig("crop")
-  else
-    utils.createConfig(crops,"crop")
-  end
-end
+local crops = utils.getConfig("crop", DEFAULT_CROPS)
+
 
 -- Load crop configuration
 --------------------------------------------------
 -- CONFIG SETUP
 --------------------------------------------------
 
-if utils.configExists("farm") then
-  farmConfig = utils.loadConfig("farm")
-else
-  utils.createConfig(farmConfig,"farm")
-end
+local farmConfig = urils.getConfig("farm", DEFAULT_CONFIG)
+
 --------------------------------------------------
 -- CLEAR CONSOLE
 term.clear()
@@ -466,7 +457,6 @@ end
 -- MAIN LOOP
 --------------------------------------------------
 smove.home()
-loadCropConfig()
 print("Thank thee to Beni for his script, which The Aram'lor improved")
 print("Starting main farming process.")
 while true do

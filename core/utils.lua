@@ -31,24 +31,27 @@ local function canDigBlock(inspectFunc)
 end
 
 
-local function persistentDig(digFunc, inspectFunc, conflictingTutels)
+function persistentDig(digFunc, inspectFunc, conflictingTutels)
     local attempts = 1
     
-    -- List of mod prefixes that should cause immediate failure
+    if not digFunc then
+        return false, "No dig function passed. Is a pickaxe equipped?"
+    end
 
     local continueDigging = true
     while continueDigging do
         -- Check what we're trying to dig
         if isFacingTutel(inspectFunc) then
-            if attempts < 20 then
+            if attempts < 50 then
                 os.sleep(math.random(1,3)*0.5) -- Small delay between attempts
             else
                 if conflictingTutels then
                     conflictingTutels()
                     return false, "Blocked by another turtle. Conflict resolution triggered."
                 else
-                    print("Emergency Fallback. Tutel Cannibalism!")
-                    continueDigging = digFunc()
+                    print("No Emergency Fallback!")
+                    return false, "Blocked by another turtle. No Conflict resolution."
+
                 end
             end
         else
@@ -105,11 +108,36 @@ self = {
         file.close()
     end,
 
-    loadConfig = function(name)
+    cleanLoadedConfig = function(loaded, default)
+        if type(loaded) ~= "table" or type(default) ~= "table" then
+            error("Both loaded and default must be tables")
+        end
+
+        -- Create new table to store cleaned config
+        local cleaned = {}
+
+        -- Add all entries from default, using loaded values when they exist
+        for k, v in pairs(default) do
+            if type(v) == "table" and type(loaded[k]) == "table" then
+                -- Recursively clean nested tables
+                cleaned[k] = self.cleanLoadedConfig(loaded[k], v)
+            else
+                cleaned[k] = loaded[k] ~= nil and loaded[k] or v
+            end
+        end
+
+        return cleaned
+    end,
+
+    loadConfig = function(name, default)
         local file = fs.open(name .. ".config", "r")
         local data = file.readAll()
         file.close()
-        return textutils.unserialize(data)
+        local loaded = textutils.unserialize(data)
+        if default then
+            return self.cleanLoadedConfig(loaded, default)
+        end
+        return loaded
     end,
 
     configExists = function(name)
@@ -133,12 +161,14 @@ self = {
         end
 
         if self.configExists(name) then
-            return self.loadConfig(name)
+            return self.loadConfig(name, default)
         else
             self.createConfig(default, name)
             return default
         end
     end,
+    
+
 
     findItem = function(itemName)
         for slot = 1, 16 do
@@ -176,24 +206,25 @@ self = {
         file.close()
         return data
     end,
-    ender_refuel = function()
+    ender_refuel = function(fuelSlot)
+        local slot = fuelSlot or self.enderFuelSlot
         local fuel = turtle.getFuelLevel()
         print("Fuel low (" .. fuel .. "); Ender refueling...")
-        local chest = turtle.getItemDetail(self.enderFuelSlot)
+        local chest = turtle.getItemDetail(slot)
         if chest then
             if turtle.inspectUp() then
                 turtle.digUp()
             end
-            turtle.select(self.enderFuelSlot)
+            turtle.select(slot)
             turtle.placeUp()
             if turtle.suckUp(self.fuelSuckCount) then
                 turtle.refuel()
             end
-            if turtle.getItemDetail(self.enderFuelSlot) then
-                turtle.select(self.enderFuelSlot)
+            if turtle.getItemDetail(slot) then
+                turtle.select(slot)
                 turtle.drop()
             end
-            turtle.select(self.enderFuelSlot)
+            turtle.select(slot)
             turtle.digUp()
             return true
         end
