@@ -138,13 +138,40 @@ local function performInstall(manifest, selectedOptionals, onStatus)
     end
 
     local completed = 0
-    deleteInstalled(manifest, onStatus)
+
     -- Install required files
     for _, file in ipairs(manifest.files.required) do
         if onStatus then
             onStatus("Downloading: " .. file.path)
         end
-        if not fs.exists(file.path) then
+        if fs.exists(file.path) then
+            fs.delete(file.path)
+        end
+
+        local dir = fs.getDir(file.path)
+        if dir and not fs.exists(dir) then
+            fs.makeDir(dir)
+        end
+
+        shell.run("wget", file.url, file.path)
+        completed = completed + 1
+        if onStatus then
+            local progress = completed / totalFiles or 0
+            onStatus("Downloaded: " .. file.path, progress)
+        end
+    end
+
+    -- Install selected optional files
+    if manifest.files.optional and selectedOptionals then
+        for _, index in pairs(selectedOptionals) do
+            local file = manifest.files.optional[index]
+            if onStatus then
+                onStatus("Downloading: " .. file.path)
+            end
+            if fs.exists(file.path) then
+                fs.delete(file.path)
+            end
+
             local dir = fs.getDir(file.path)
             if dir and not fs.exists(dir) then
                 fs.makeDir(dir)
@@ -156,75 +183,37 @@ local function performInstall(manifest, selectedOptionals, onStatus)
                 local progress = completed / totalFiles or 0
                 onStatus("Downloaded: " .. file.path, progress)
             end
-        else
-            completed = completed + 1
-            if onStatus then
-                local progress = completed / totalFiles or 0
-                onStatus("Skipping existing file: " .. file.path, progress)
-            end
         end
     end
 
-    -- Install selected optional files
-    if manifest.files.optional and selectedOptionals then
-        for _, index in pairs(selectedOptionals) do
-            local file = manifest.files.optional[index]
-            if onStatus then
-                onStatus("Downloading: " .. file.path)
-            end
-            if not fs.exists(file.path) then
-
-                local dir = fs.getDir(file.path)
-                if dir and not fs.exists(dir) then
-                    fs.makeDir(dir)
-                end
-
-                shell.run("wget", file.url, file.path)
-                completed = completed + 1
-                if onStatus then
-                    local progress = completed / totalFiles or 0
-                    onStatus("Downloaded: " .. file.path, progress)
-                end
-            else
-                completed = completed + 1
-                if onStatus then
-                    local progress = completed / totalFiles or 0
-                    onStatus("Skipping existing file: " .. file.path, progress)
-                end
-            end
-        end
-    end
     -- Handle startup scripts
     if manifest.startup then
         for _, script in ipairs(manifest.startup) do
             if onStatus then
                 onStatus("Setting up: " .. script.destination, completed / totalFiles)
             end
-            if not fs.exists(file.path) then
-                local dir = fs.getDir(script.destination)
-                if dir and not fs.exists(dir) then
-                    fs.makeDir(dir)
-                end
-
-                if script.type == "copy" then
-                    fs.copy(script.source, script.destination)
-                elseif script.type == "move" then
-                    fs.move(script.source, script.destination)
-                end
-                completed = completed + 1
-                local progress = completed / totalFiles or 0
-
-                onStatus("Set up: " .. script.destination, progress)
-            else
-                completed = completed + 1
-                if onStatus then
-                    local progress = completed / totalFiles or 0
-                    onStatus("Skipping existing file: " .. file.path, progress)
-                end
+            if fs.exists(script.destination) then
+                fs.delete(script.destination)
             end
+
+            local dir = fs.getDir(script.destination)
+            if dir and not fs.exists(dir) then
+                fs.makeDir(dir)
+            end
+
+            if script.type == "copy" then
+                fs.copy(script.source, script.destination)
+            elseif script.type == "move" then
+                fs.move(script.source, script.destination)
+            end
+            completed = completed + 1
+            local progress = completed / totalFiles or 0
+
+            onStatus("Set up: " .. script.destination, progress)
+
         end
-        
     end
+
     if onStatus then
         onStatus("Installation complete!", 1)
     end
