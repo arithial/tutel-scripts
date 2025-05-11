@@ -10,13 +10,13 @@ return {
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/core/utils.lua"
             },
             {
-                path = "controller.lua", -- Direct placement as startup.lua
-                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/controller/geo-controller.lua"
-            },
-            {
                 path = "geo-commons.lua",
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/geo-commons.lua"
 
+            },
+            {
+                path = "controller.lua", -- Direct placement as startup.lua
+                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/controller/geo-controller.lua"
             }
         },
         optional = {}
