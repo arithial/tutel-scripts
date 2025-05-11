@@ -22,10 +22,6 @@ return {
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/installer/startup.lua"
             },
             {
-                path = "manifest.lua",
-                url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/geo/miner/manifest.lua"
-            },
-            {
                 path = "installer.lua",
                 url = "https://raw.githubusercontent.com/arithial/tutel-scripts/refs/heads/main/installer/installer.lua"
             }
