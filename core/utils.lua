@@ -30,57 +30,65 @@ local function canDigBlock(inspectFunc)
     return true
 end
 
-function persistentDig(digFunc, inspectFunc, conflictingTutels)
-    local attempts = 1
-
-    if not digFunc then
-        return false, "No dig function passed. Is a pickaxe equipped?"
-    end
-
-    local continueDigging = true
-    while continueDigging do
-        local success, data = inspectFunc()
-
-        -- Check what we're trying to dig
-        if (data  and data.name == "enderstorage:ender_chest") or isFacingTutel(inspectFunc) then
-            if attempts < 50 then
-                os.sleep(math.random(1, 3) * 0.5) -- Small delay between attempts
-            else
-                if conflictingTutels then
-                    conflictingTutels()
-                    return false, "Blocked by another turtle or ender storage. Conflict resolution triggered."
-                else
-                    print("No Emergency Fallback!")
-                    return false, "Blocked by another turtle or ender storage. No Conflict resolution."
-
-                end
-            end
-        else
-            local canDig, message = canDigBlock(inspectFunc)
-            if not canDig then
-                return false, message
-            end
-            continueDigging = digFunc()
-        end
-
-        attempts = attempts + 1
-        os.sleep(0.1)
-    end
-
-    -- If we reach here, we hit the timeout
-    -- One final check
-    local success, data = inspectFunc()
-
-    if success and data.name == "minecraft:bedrock" then
-        return false, "Cannot dig bedrock"
-    end
-    return true
-end
-
-
 self = {
     enderFuelSlot = 1,
     fuelSuckCount = 64, -- Number of fuel items (e.g., coal) to suck at start.
+    hasArg = function(flag, args)
+        for _, arg in ipairs(args) do
+            if string.lower(arg) == flag then
+                return true
+            end
+        end
+        return false
+    end,
+    persistentDig = function(digFunc, inspectFunc, conflictingTutels, enderProtect)
+        local attempts = 1
+
+        if not digFunc then
+            return false, "No dig function passed. Is a pickaxe equipped?"
+        end
+
+        local continueDigging = true
+        while continueDigging do
+            local success, data = inspectFunc()
+            if not success then
+                return true
+            end
+            -- Check what we're trying to dig
+            if (enderProtect and data and data.name == "enderstorage:ender_chest") or isFacingTutel(inspectFunc) then
+                if attempts < 50 then
+                    os.sleep(math.random(1, 3) * 0.5) -- Small delay between attempts
+                else
+                    if conflictingTutels then
+                        conflictingTutels()
+                        return false, "Blocked by another turtle or ender storage. Conflict resolution triggered."
+                    else
+                        print("No Emergency Fallback!")
+                        return false, "Blocked by another turtle or ender storage. No Conflict resolution."
+
+                    end
+                end
+            else
+                local canDig, message = canDigBlock(inspectFunc)
+                if not canDig then
+                    return false, message
+                end
+                continueDigging = digFunc()
+            end
+
+            attempts = attempts + 1
+            os.sleep(0.1)
+        end
+
+        -- If we reach here, we hit the timeout
+        -- One final check
+        local success, data = inspectFunc()
+
+        if success and data.name == "minecraft:bedrock" then
+            return false, "Cannot dig bedrock"
+        end
+        return true
+    end,
     isInventoryFull = function()
         for slot = 1, 16 do
             if turtle.getItemDetail(slot) == nil then
@@ -181,7 +189,6 @@ self = {
     end,
 
 
-
     findItem = function(itemName)
         for slot = 1, 16 do
             local item = turtle.getItemDetail(slot)
@@ -225,7 +232,7 @@ self = {
         local chest = turtle.getItemDetail(slot)
         if chest then
             if turtle.inspectUp() then
-                turtle.digUp()
+                self.persistentDig(turtle.digUp, turtle.inspectUp, nil, false)
             end
             turtle.select(slot)
             turtle.placeUp()
@@ -237,7 +244,7 @@ self = {
                 turtle.drop()
             end
             turtle.select(slot)
-            turtle.digUp()
+            self.persistentDig(turtle.digUp, turtle.inspectUp, nil, false)
             return true
         end
         return false
@@ -472,7 +479,7 @@ self = {
         steps = steps or 1
         for i = 1, steps do
             if not turtle.forward() then
-                local success, message = persistentDig(turtle.dig, turtle.inspect, conflictingTutels)
+                local success, message = self.persistentDig(turtle.dig, turtle.inspect, conflictingTutels, true)
                 if not success then
                     return false, message
                 end
@@ -489,7 +496,7 @@ self = {
         steps = steps or 1
         for i = 1, steps do
             if not turtle.up() then
-                local success, message = persistentDig(turtle.digUp, turtle.inspectUp, conflictingTutels)
+                local success, message = self.persistentDig(turtle.digUp, turtle.inspectUp, conflictingTutels, true)
                 if not success then
                     return false, message
                 end
@@ -505,7 +512,7 @@ self = {
         steps = steps or 1
         for i = 1, steps do
             if not turtle.down() then
-                local success, message = persistentDig(turtle.digDown, turtle.inspectDown, conflictingTutels)
+                local success, message = self.persistentDig(turtle.digDown, turtle.inspectDown, conflictingTutels, true)
                 if not success then
                     return false, message
                 end

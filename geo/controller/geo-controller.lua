@@ -1,6 +1,7 @@
 -- Controller for managing Ancient Debris mining operation
 local utils = require("./core/utils")
 local commons = require("./geo-commons")
+local args = { ... }
 
 -- Configuration
 local DEFAULT_CONFIG = {
@@ -115,6 +116,7 @@ local function initController()
             error("Could not get GPS coordinates for initialization")
         end
     end
+
 end
 
 -- Handle turtle requests
@@ -205,6 +207,21 @@ local function cleanup()
     saveState()
 end
 
+--local function getStaggeredOffset(turtleLabel)
+--    if not turtleRegistry.turtles[turtleLabel] then
+--        return 0
+--    end
+--
+--    local turtleData = turtleRegistry.turtles[turtleLabel]
+--    if not turtleData.offset then
+--        -- Calculate and store fixed offset for this turtle
+--        turtleData.offset = math.random(-7, 7)
+--        saveState()
+--    end
+--
+--    return turtleData.offset
+--end
+
 local function getStaggeredOffset(turtleLabel)
     if not turtleRegistry.turtles[turtleLabel] then
         return 0
@@ -212,20 +229,81 @@ local function getStaggeredOffset(turtleLabel)
 
     local turtleData = turtleRegistry.turtles[turtleLabel]
     if not turtleData.offset then
-        -- Calculate and store fixed offset for this turtle
-        local seed = os.time() * turtleData.transitionLayer +
-                string.byte(turtleLabel, 1) -- Use turtle label in seed
-        math.randomseed(seed)
-        turtleData.offset = math.random(-6, 6)
+        -- Initialize tracking table if doesn't exist
+        if not config.usedPositions then
+            config.usedPositions = {}
+        end
+
+        local layer = turtleData.transitionLayer or 0
+        if not config.usedPositions[layer] then
+            config.usedPositions[layer] = {}
+        end
+
+        -- Collect all unused offsets in current layer
+        local possibleOffsets = {}
+        for offset = -6, 6 do
+            if not config.usedPositions[layer][offset] then
+                table.insert(possibleOffsets, offset)
+            end
+        end
+
+        if #possibleOffsets == 0 then
+            -- No free spots - use deterministic fallback
+            turtleData.offset = (string.byte(turtleLabel, 1) % 13) - 6
+        else
+            -- Pick a random available offset
+            local randomIndex = math.random(1, #possibleOffsets)
+            turtleData.offset = possibleOffsets[randomIndex]
+        end
+
+        -- Record the used position
+        config.usedPositions[layer][turtleData.offset] = turtleLabel
         saveState()
     end
 
     return turtleData.offset
 end
 
+local function resetOffsetAndTransitions()
+    -- Reset all turtle transition layers and offsets
+    for label, turtleData in pairs(turtleRegistry.turtles) do
+        turtleData.transitionLayer = nil
+        turtleData.offset = nil
+    end
+
+    -- Clear used positions
+    config.usedPositions = {}
+    -- Reset last transition layer
+    config.lastTransitionLayerUsed = config.yMin - 1
+
+    saveState()
+end
+
+local function getTranslationLayer(turtleLabel)
+    if not config.lastTransitionLayerUsed then
+        config.lastTransitionLayerUsed = config.yMin - 1
+    end
+    local maxIncrease = math.ceil(math.abs(config.yMax - config.yMin) * 0.5)
+    local newTransitionLayer = config.lastTransitionLayerUsed + 2
+    if turtleRegistry.turtles[turtleLabel].transitionLayer then
+        newTransitionLayer = turtleRegistry.turtles[turtleLabel].transitionLayer
+
+    elseif newTransitionLayer > (config.yMax + maxIncrease) then
+        newTransitionLayer = config.yMin
+    end
+    turtleRegistry.turtles[turtleLabel].transitionLayer = newTransitionLayer
+    config.lastTransitionLayerUsed = newTransitionLayer
+
+    saveState()
+end
+
 -- Main controller loop
 local function run()
     initController()
+
+    if utils.hasArgs("-r", args) then
+        resetOffsetAndTransitions()
+    end
 
     modem.open(commons.controllerChannel) -- Channel 1 for requests
     print("Listening on channel 1 for requests")
@@ -269,19 +347,7 @@ local function run()
                     saveState() -- Save state after updating
                     printStatus()
                 elseif request.type == commons.requestTypes.transitionRequest then
-                    if not config.lastTransitionLayerUsed then
-                        config.lastTransitionLayerUsed = config.yMin - 1
-                    end
-
-                    local newTransitionLayer = config.lastTransitionLayerUsed + 1
-                    if turtleRegistry.turtles[request.label].transitionLayer then
-                        newTransitionLayer = turtleRegistry.turtles[request.label].transitionLayer
-
-                    elseif newTransitionLayer > config.yMax then
-                        newTransitionLayer = config.yMin
-                    end
-                    turtleRegistry.turtles[request.label].transitionLayer = newTransitionLayer
-                    saveState()
+                    local newTransitionLayer = getTranslationLayer(request.label)
                     local horizontalOffset = getStaggeredOffset(request.label);
                     modem.transmit(replyChannel, commons.controllerChannel, textutils.serialize({
                         type = commons.requestTypes.transitionRequest,
@@ -289,7 +355,6 @@ local function run()
                         transitionLayer = newTransitionLayer,
                         horizontalOffset = horizontalOffset
                     }))
-                    config.lastTransitionLayerUsed = newTransitionLayer
 
                 elseif request.type == commons.requestTypes.newChunkRequest then
 

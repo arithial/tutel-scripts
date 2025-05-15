@@ -218,13 +218,21 @@ local function depositValuables()
         [CHEST] = true
     }
     equipPeripheral(config.pickaxeSlot)
+    turtle.select(5)
 
-    turtle.select(config.depositChestSlot)
     if turtle.inspectUp() then
-        turtle.digUp()
+        if not utils.persistentDig(turtle.digUp, turtle.inspectUp, nil, false) then
+            error("Failed to clean slot for value deposition.")
+        end
     end
+    turtle.select(config.depositChestSlot)
     turtle.placeUp()
+    local success,data = turtle.inspectUp()
+    if not success or not data or data.name ~= CHEST then
+        utils.persistentDig(turtle.digUp, turtle.inspectUp, nil, false)
+        error("Failed to place storage.")
 
+    end
     for slot = 1, 16 do
         -- Skip protected slots
         if not protectedSlots[slot] then
@@ -237,7 +245,9 @@ local function depositValuables()
     end
 
     turtle.select(config.depositChestSlot)
-    turtle.digUp()
+    if not utils.persistentDig(turtle.digUp, turtle.inspectUp, nil, false) then
+        error("Failed to clean slot for value deposition.")
+    end
     turtle.select(5)
 end
 local function isInventoryFull()
@@ -551,7 +561,7 @@ local function moveToChunk()
     end
     sendStatusMessage("Moving to assigned chunk")
 
-    local offset = State.currentChunk.horizontalOffset or 0
+    local offset = config.horizontalOffset or 0
     local centerX, centerZ = getChunkCenter() 
     print("Moving to chunk center: (" .. centerX .. "," .. centerZ .. ")")
 
@@ -808,9 +818,6 @@ end
 local terminate = false
 
 local function requestTransitionLayer()
-    if config.transitionLayer and config.horizontalOffset then
-        return -- we already have an assigned transition layer.
-    end
     print("Requesting transition layer")
     equipPeripheral(config.enderModemSlot)
     local modem = peripheral.wrap(config.peripheralSide)
@@ -818,6 +825,8 @@ local function requestTransitionLayer()
         print("ERROR: No modem found on " .. config.peripheralSide .. " side")
         error("No modem found")
     end
+    currentAction = "updatingTransitionData"
+    sendStatusMessage("Requesting transition layer and offset.")
     modem.open(config.replyChannel)
 
     -- Request format matches controller expectations
@@ -893,7 +902,6 @@ local function initialize()
     if not hasEnderChest(config.depositChestSlot) then
         return false, "Missing ender deposit chest in slot " .. config.depositChestSlot
     end
-    requestTransitionLayer()
     return true
 end
 -- And in the main mining loop, add periodic cleanup:
@@ -912,6 +920,7 @@ local function run()
         equipPeripheral(config.pickaxeSlot)
         print("=== Main Loop Start ===")
         handleTurtleUtilities()  -- Replace the existing check
+        requestTransitionLayer()
 
         -- Get new chunk if needed
         if not State.currentChunk then
@@ -919,15 +928,12 @@ local function run()
             currentAction = "chunkRequest"
             requestNewChunk()
             print("Assigned chunk: ", textutils.serialize(State.currentChunk))
-
-            -- Reset Y level index when starting new chunk
-
-            -- Move to new chunk at first Y level
-            print("Moving to assigned chunk...")
-            currentAction = "moveToChunk"
-            if not moveToChunk() then
-                error("Failed to move to assigned chunk")
-            end
+        end
+        -- Move to new chunk at first Y level
+        print("Moving to assigned chunk...")
+        currentAction = "moveToChunk"
+        if not moveToChunk() then
+            error("Failed to move to assigned chunk")
         end
 
         -- Move to center and current Y level
@@ -1004,6 +1010,11 @@ local function run()
         end
         currentAction = "chunkFinished"
         sendStatusMessage("Chunk  complete.")
+        local nY, nZ = getChunkCenter()
+
+        local offset = config.horizontalOffset or 0
+        moveToXZ(nY + offset, nZ + offset)
+
         State.currentChunk = nil
 
         -- Save state after each major operation
