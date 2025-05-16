@@ -2047,6 +2047,7 @@ function enderRefuel() --Assumes a) An enderchest is in front of it b) It needs 
     end
     statusString = nil
   until midRunRefuel(slot, 0) --Returns true when should not refuel any more
+  turtle.digUp()
   if not turtle.drop() then turtle.dropDown() end --If cannot put fuel back, just drop it, full fuel chest = user has too much fuel already
   return true -- :D
 end
