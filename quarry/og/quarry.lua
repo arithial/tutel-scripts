@@ -1585,6 +1585,8 @@ function dig(doAdd, mineFunc, inspectFunc, suckDir,blacklistCheck)
         lavaRefuel(suckDir)
       end
     end
+  else
+    mineFlag = true
   end
   if not oreQuarry or not inspectFunc or mineFlag then
     --Mines if not oreQuarry, or if the inspect passed

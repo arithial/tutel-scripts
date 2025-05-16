@@ -15,13 +15,16 @@ local function plantSapling()
 end
 
 while true do
+  turtle.suckDown(64)
   local hasBlock, data = turtle.inspect()
   if hasBlock then
     if data.tags["minecraft:logs"] then
-      while not turtle.dig() do end  -- Keep digging until tree is fully chopped
+      while not turtle.dig() do
+        os.sleep(0.1)
+      end  -- Keep digging until tree is fully chopped
     else
       print("Waiting for growth for " .. data.name)
-      os.sleep(10)  -- This sleep is fine as it's for tree growth
+      os.sleep(5)  -- This sleep is fine as it's for tree growth
     end
   else
     if not plantSapling() then
