@@ -210,7 +210,7 @@ end
   enderChest, fuelChest, lavaBucket, compareChest
 = false,      false,     false,      false
 
-local chestID, lavaID, lavaMeta = "minecraft:chest", "minecraft:flowing_lava", 0
+local chestID, lavaID, lavaMeta = "minecraft:chest", "minecraft:lava", 0
 
 local statusString
 
