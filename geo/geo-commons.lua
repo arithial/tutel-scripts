@@ -7,6 +7,7 @@ return {
         chunkAssignment = "chunkAssignment",
         reboot = "reboot",
         errorReport = "tutelError",
-        transitionRequest = "transition"
+        transitionRequest = "transition",
+        moveTo = "moveTo"
     }
 }

@@ -1615,6 +1615,12 @@ function dig(doAdd, mineFunc, inspectFunc, suckDir,blacklistCheck)
       else
         success = true
       end
+      if data and (data.name == "minecraft:water" or data.name == "minecraft:lava") then
+        if doAdd then
+          mined = mined + 1
+        end
+        return true
+      end
     end
     if continueDigging and attempts >= 50 and success then
       return false

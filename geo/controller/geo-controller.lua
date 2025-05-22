@@ -180,9 +180,9 @@ local function printStatus()
                     turtleData.assignedChunk.ne.y or config.yMax,
                     turtleData.assignedChunk .ne.z))
         else
-            print(label..": ")
+            print(label .. ": ")
         end
-        print(string.format("Y transition layer: %d",turtleData.transitionLayer))
+        print(string.format("Y transition layer: %d", turtleData.transitionLayer))
         if turtleData.lastKnownLocation then
             print(string.format("Last Known Location: %d,%d,%d; Status: %s",
                     turtleData.lastKnownLocation.x,
@@ -266,7 +266,7 @@ end
 
 local function resetOffsetAndTransitions()
     -- Reset all turtle transition layers and offsets
-    for label, turtleData in pairs(turtleRegistry.turtles) do
+    for _, turtleData in pairs(turtleRegistry.turtles) do
         turtleData.transitionLayer = nil
         turtleData.offset = nil
     end
@@ -316,17 +316,27 @@ local function run()
         if channel == commons.controllerChannel then
             local request = textutils.unserialize(message)
             if request and request.label then
-                if not turtleRegistry.turtles[request.label] then
-                    turtleRegistry.turtles[request.label] = createEmptyTurtleRegistryEntry()
-                end
+                local turtleData = turtleRegistry.turtles[request.label] or createEmptyTurtleRegistryEntry()
+                turtleRegistry.turtles[request.label] = turtleData
                 saveState()
-                if turtleRegistry.turtles[request.label].reboot then
+
+                if turtleData.reboot then
                     print(request.label .. " has been marked for rebooting. Sending proper response")
                     modem.transmit(replyChannel, commons.controllerChannel, textutils.serialize({
                         label = request.label,
                         type = commons.requestTypes.reboot
                     }))
-                    turtleRegistry.turtles[request.label].reboot = false
+                    turtleData.reboot = false
+                    saveState() -- Save state after updating
+                elseif turtleData.moveTo and turtleData.moveTo.x then
+                    modem.transmit(replyChannel, commons.controllerChannel, textutils.serialize({
+                        label = request.label,
+                        type = commons.requestTypes.moveTo,
+                        x = turtleData.moveTo.x,
+                        y = turtleData.moveTo.y,
+                        z = turtleData.moveTo.z
+                    }))
+                    turtleData.moveTo = nil
                     saveState() -- Save state after updating
                 elseif request.type == commons.requestTypes.statusRequest then
                     print("Status request received")
@@ -336,13 +346,15 @@ local function run()
                         registry = turtleRegistry
                     }))
                 elseif request.type == commons.requestTypes.statusUpdate then
-                    turtleRegistry.turtles[request.label].lastKnownLocation = request.location
-                    turtleRegistry.turtles[request.label].message = request.message
-                    turtleRegistry.turtles[request.label].fuelLevel = request.fuelLevel
-                    turtleRegistry.turtles[request.label].status = request.currentAction
+                    turtleData.lastKnownLocation = request.location
+                    turtleData.message = request.message
+                    turtleData.fuelLevel = request.fuelLevel
+                    turtleData.status = request.currentAction
                     if request.reboot then
-                        turtleRegistry.turtles[request.label].reboot = true
-
+                        turtleData.reboot = true
+                    end
+                    if request.moveTo then
+                        turtleData.moveTo = request.moveTo
                     end
                     saveState() -- Save state after updating
                     printStatus()

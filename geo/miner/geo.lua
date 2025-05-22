@@ -133,11 +133,17 @@ local function doRefuel()
     utils.ender_refuel(config.fuelChestSlot)
     turtle.select(5)
 end
+
 local function handleSystemResponses(response)
     if response and response.label == os.getComputerLabel() and response.type == commons.requestTypes.reboot then
         os.reboot()
+        elseif response and response.label == os.getComputerLabel() and response.type == commons.requestTypes.moveTo then
+        moveToXZ(response.x, response.y)
+        moveToY(response.y)
+        os.shutdown()
     end
 end
+
 -- GPS and position utilities
 local function getPosition(forcePickaxe)
     equipPeripheral(config.enderModemSlot) -- Ensure modem is equipped
